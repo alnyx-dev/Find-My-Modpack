@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ModrinthAI Search</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>ModrinthAI Search</h1>
+      <button id="settingsBtn" class="settings-btn">Настройки AI</button>
+    </header>
+
+    <main class="main">
+      <div class="search-box">
+        <textarea id="searchInput" placeholder="Опиши какой модпак ищешь..." rows="3"></textarea>
+        <button id="searchBtn" class="search-btn">Найти</button>
+      </div>
+
+      <div id="status" class="status hidden"></div>
+      <div id="results" class="results"></div>
+
+      <div id="emptyState" class="empty-state">
+        <h2>Примеры запросов:</h2>
+        <div class="examples">
+          <button class="example-btn" data-query="хочу модпак с магией и технологиями для 1.20.1 на Fabric">Магия + Технологии на Fabric</button>
+          <button class="example-btn" data-query="хардкорный модпак типа RLCraft но полегче">Хардкорный (типа RLCraft)</button>
+          <button class="example-btn" data-query="модпак для новичка с базовыми аддонами">Для новичка</button>
+          <button class="example-btn" data-query="модпак с индастриалкрафтом и автоматизацией">Индустрия и автоматизация</button>
+          <button class="example-btn" data-query="модпак для multiplayer с друзьями">Мультиплеер</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Настройки AI-провайдера</h2>
+        <button id="closeModal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="providerType">Тип провайдера:</label>
+          <select id="providerType">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="ollama">Ollama (локальный)</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">Custom (OpenAI-compatible)</option>
+          </select>
+        </div>
+        <div id="providerFields"></div>
+        <div class="form-group">
+          <button id="testBtn" class="test-btn">Проверить соединение</button>
+          <div id="testResult" class="test-result hidden"></div>
+        </div>
+        <div class="modal-actions">
+          <button id="saveBtn" class="save-btn">Сохранить</button>
+          <button id="cancelBtn" class="cancel-btn">Отмена</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
