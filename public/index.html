@@ -3,67 +3,252 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ModrinthAI Search</title>
+  <title>Find My Modpack</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+  <div class="bg-glow"></div>
   <div class="app">
     <header class="header">
-      <h1>ModrinthAI Search</h1>
-      <button id="settingsBtn" class="settings-btn">Настройки AI</button>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#1bd96a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 17L12 22L22 17" stroke="#1bd96a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 12L12 17L22 12" stroke="#1bd96a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <h1>Find My Modpack</h1>
+          <span class="subtitle">AI-powered modpack search</span>
+        </div>
+      </div>
+      <button id="settingsBtn" class="settings-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+        Settings
+      </button>
     </header>
 
     <main class="main">
+      <div class="search-hero">
+        <h2>Find your perfect modpack</h2>
+        <p>Describe what you want in natural language</p>
+      </div>
+
       <div class="search-box">
-        <textarea id="searchInput" placeholder="Опиши какой модпак ищешь..." rows="3"></textarea>
-        <button id="searchBtn" class="search-btn">Найти</button>
+        <div class="search-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+          </svg>
+        </div>
+        <textarea id="searchInput" placeholder="Magic modpack with tech for 1.20.1 Fabric, not too hardcore..." rows="1"></textarea>
+        <button id="searchBtn" class="search-btn">
+          <span class="btn-text">Search</span>
+          <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="progressContainer" class="progress-container">
+        <div class="loader">
+          <div class="loader-ring">
+            <svg width="140" height="140" viewBox="0 0 140 140">
+              <defs>
+                <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#1bd96a"/>
+                  <stop offset="50%" stop-color="#0f9c4e"/>
+                  <stop offset="100%" stop-color="#1bd96a"/>
+                </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="4" result="blur"/>
+                  <feMerge>
+                    <feMergeNode in="blur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <circle cx="70" cy="70" r="58" fill="none" stroke="var(--bg-3)" stroke-width="5" opacity="0.5"/>
+              <circle cx="70" cy="70" r="58" fill="none" stroke="url(#ringGrad)" stroke-width="5" stroke-dasharray="364.4" stroke-dashoffset="364.4" stroke-linecap="round" id="ringProgress" filter="url(#glow)" class="loader-ring-anim"/>
+              <circle cx="70" cy="70" r="46" fill="none" stroke="var(--accent)" stroke-width="1" stroke-dasharray="4 8" opacity="0.15" class="loader-ring-dotted"/>
+            </svg>
+            <div class="loader-core">
+              <div class="loader-percent" id="loaderPercent">0%</div>
+            </div>
+          </div>
+          <div class="loader-particles" id="loaderParticles">
+            <span></span><span></span><span></span>
+            <span></span><span></span><span></span>
+          </div>
+          <div class="burst" id="burst">
+            <div class="burst-flash"></div>
+            <div class="burst-ring"></div>
+            <div class="burst-ring burst-ring--2"></div>
+            <div class="burst-shards" id="burstShards"></div>
+            <div class="burst-dots" id="burstDots"></div>
+          </div>
+        </div>
+        <div class="loader-phases" id="loaderPhases">
+          <div class="loader-phase active" data-phase="parsing">
+            <div class="loader-phase-dot"></div>
+            <span>Анализ запроса</span>
+          </div>
+          <div class="loader-phase-line"></div>
+          <div class="loader-phase" data-phase="searching">
+            <div class="loader-phase-dot"></div>
+            <span>Поиск в Modrinth</span>
+          </div>
+          <div class="loader-phase-line"></div>
+          <div class="loader-phase" data-phase="ranking">
+            <div class="loader-phase-dot"></div>
+            <span>Ранжирование</span>
+          </div>
+        </div>
       </div>
 
       <div id="status" class="status hidden"></div>
       <div id="results" class="results"></div>
 
       <div id="emptyState" class="empty-state">
-        <h2>Примеры запросов:</h2>
-        <div class="examples">
-          <button class="example-btn" data-query="хочу модпак с магией и технологиями для 1.20.1 на Fabric">Магия + Технологии на Fabric</button>
-          <button class="example-btn" data-query="хардкорный модпак типа RLCraft но полегче">Хардкорный (типа RLCraft)</button>
-          <button class="example-btn" data-query="модпак для новичка с базовыми аддонами">Для новичка</button>
-          <button class="example-btn" data-query="модпак с индастриалкрафтом и автоматизацией">Индустрия и автоматизация</button>
-          <button class="example-btn" data-query="модпак для multiplayer с друзьями">Мультиплеер</button>
+        <div class="examples-grid">
+          <button class="example-btn" data-query="хочу модпак с магией и технологиями для 1.20.1 на Fabric">
+            <span class="example-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </span>
+            <span class="example-text">Magic + Tech</span>
+            <span class="example-desc">Fabric 1.20.1</span>
+          </button>
+          <button class="example-btn" data-query="хардкорный модпак типа RLCraft но полегче">
+            <span class="example-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
+                <path d="M13 19l6-6"/>
+                <path d="M16 16l4 4"/>
+                <path d="M19 21l2-2"/>
+                <path d="M14.5 6.5L18 3h3v3l-3.5 3.5"/>
+                <path d="M5 14l4 4"/>
+                <path d="M7 17l-3 3"/>
+              </svg>
+            </span>
+            <span class="example-text">Hardcore</span>
+            <span class="example-desc">Like RLCraft but easier</span>
+          </button>
+          <button class="example-btn" data-query="модпак для новичка с базовыми аддонами">
+            <span class="example-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </span>
+            <span class="example-text">Beginner</span>
+            <span class="example-desc">Simple addons</span>
+          </button>
+          <button class="example-btn" data-query="модпак с индастриалкрафтом и автоматизацией">
+            <span class="example-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+            </span>
+            <span class="example-text">Industry</span>
+            <span class="example-desc">Automation</span>
+          </button>
+          <button class="example-btn" data-query="модпак для multiplayer с друзьями">
+            <span class="example-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                <path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+            </span>
+            <span class="example-text">Multiplayer</span>
+            <span class="example-desc">Play with friends</span>
+          </button>
+          <button class="example-btn" data-query="модпак с магией и квестами RPG">
+            <span class="example-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                <line x1="4" y1="22" x2="4" y2="15"/>
+              </svg>
+            </span>
+            <span class="example-text">RPG Quests</span>
+            <span class="example-desc">Magic & quests</span>
+          </button>
         </div>
+        <div id="searchHistory" class="search-history"></div>
       </div>
     </main>
+
+    <footer class="footer">
+      <span>Powered by <a href="https://modrinth.com" target="_blank">Modrinth</a> API</span>
+    </footer>
   </div>
 
   <div id="settingsModal" class="modal hidden">
+    <div class="modal-overlay"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Настройки AI-провайдера</h2>
-        <button id="closeModal" class="close-btn">&times;</button>
+        <div class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1bd96a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
+            <path d="M2 17L12 22L22 17"/>
+            <path d="M2 12L12 17L22 12"/>
+          </svg>
+          <h2>AI Provider Settings</h2>
+        </div>
+        <button id="closeModal" class="close-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
       <div class="modal-body">
+        <div id="providerList" class="provider-list"></div>
+
         <div class="form-group">
-          <label for="providerType">Тип провайдера:</label>
+          <label for="providerType">New Provider</label>
           <select id="providerType">
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
-            <option value="ollama">Ollama (локальный)</option>
+            <option value="ollama">Ollama (local)</option>
             <option value="openrouter">OpenRouter</option>
             <option value="custom">Custom (OpenAI-compatible)</option>
           </select>
         </div>
         <div id="providerFields"></div>
         <div class="form-group">
-          <button id="testBtn" class="test-btn">Проверить соединение</button>
+          <button id="testBtn" class="test-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            Test Connection
+          </button>
           <div id="testResult" class="test-result hidden"></div>
         </div>
         <div class="modal-actions">
-          <button id="saveBtn" class="save-btn">Сохранить</button>
-          <button id="cancelBtn" class="cancel-btn">Отмена</button>
+          <button id="cancelBtn" class="cancel-btn">Cancel</button>
+          <button id="saveBtn" class="save-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            Save
+          </button>
         </div>
       </div>
     </div>
   </div>
+
+  <div id="toasts" class="toasts-container"></div>
 
   <script src="app.js"></script>
 </body>

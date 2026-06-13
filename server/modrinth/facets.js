@@ -6,7 +6,7 @@ function buildFacets({ projectType, loaders, versions, categories }) {
   }
 
   if (loaders && loaders.length > 0) {
-    facets.push(loaders.map(l => `categories:${l}`));
+    facets.push(loaders.map(l => `loaders:${l}`));
   }
 
   if (versions && versions.length > 0) {

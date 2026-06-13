@@ -1,0 +1,5 @@
+{
+  "watch": ["server", "public"],
+  "ignore": ["config/providers.json", ".env"],
+  "ext": "js,mjs,cjs,json"
+}

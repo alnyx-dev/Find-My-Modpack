@@ -1,14 +1,14 @@
 {
-  "name": "modrinth-ai-search",
+  "name": "find-my-modpack",
   "version": "1.0.0",
-  "description": "AI-поиск модпаков на Modrinth через естественный язык",
+  "description": "AI-powered natural language search for Minecraft modpacks on Modrinth",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js"
   },
   "keywords": ["modrinth", "minecraft", "ai", "search"],
-  "author": "",
+  "author": "alnyx",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
