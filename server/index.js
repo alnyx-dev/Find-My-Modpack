@@ -12,7 +12,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use((req, res, next) => {
-  console.log(`[HTTP] ${req.method} ${req.url}`);
+  if (req.url.startsWith('/api')) {
+    console.log(`[HTTP] ${req.method} ${req.url}`);
+  }
   next();
 });
 
@@ -25,24 +27,27 @@ const providerManager = new ProviderManager();
 
 if (process.env.DEFAULT_PROVIDER_TYPE) {
   const id = 'default-' + process.env.DEFAULT_PROVIDER_TYPE;
-  const existing = providerManager.getSaved()[id];
+  const hasProviders = Object.keys(providerManager.getSaved()).length > 0;
 
-  if (!existing) {
+  if (!hasProviders) {
     const config = {
       type: process.env.DEFAULT_PROVIDER_TYPE,
       apiKey: process.env.DEFAULT_PROVIDER_API_KEY,
       model: process.env.DEFAULT_PROVIDER_MODEL,
       baseURL: process.env.DEFAULT_PROVIDER_BASE_URL
     };
-    console.log(`[BOOT] Creating default provider: ${id}`, { type: config.type, model: config.model });
+    console.log(`[BOOT] First run - creating default provider: ${id}`, { type: config.type, model: config.model });
     providerManager.save(id, config);
   } else {
-    console.log(`[BOOT] Default provider already exists: ${id}, keeping saved config`);
+    console.log(`[BOOT] Providers exist, skipping default creation`);
   }
 
   if (!providerManager.getActive()) {
-    console.log(`[BOOT] No active provider, activating default: ${id}`);
-    providerManager.setActive(id);
+    const firstId = Object.keys(providerManager.getSaved())[0];
+    if (firstId) {
+      console.log(`[BOOT] No active provider, activating first available: ${firstId}`);
+      providerManager.setActive(firstId);
+    }
   } else {
     console.log(`[BOOT] Active provider already set, keeping: ${providerManager.activeProviderId}`);
   }
@@ -55,11 +60,29 @@ const orchestrator = new Orchestrator(providerManager);
 
 setupRoutes(app, orchestrator, providerManager);
 
-app.get('*', (req, res) => {
-  console.log(`[HTTP] Catch-all: ${req.url}`);
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+app.all('*', (req, res) => {
+  if (req.method === 'GET') {
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  } else {
+    res.status(404).json({ error: 'Not Found', code: 'NOT_FOUND' });
+  }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[BOOT] Find My Modpack running on http://localhost:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[BOOT] Port ${PORT} is already in use`);
+  } else {
+    console.error('[BOOT] Server error:', err.message);
+  }
+  process.exit(1);
+});
+
+process.on('SIGINT', () => {
+  console.log('\n[BOOT] Shutting down...');
+  if (orchestrator.db) orchestrator.db.close();
+  server.close(() => process.exit(0));
 });

@@ -1,7 +1,6 @@
 const express = require('express');
 
 module.exports = function(app, orchestrator, providerManager) {
-  app.use(express.json());
 
   app.post('/api/search', async (req, res) => {
     const { prompt } = req.body;
@@ -40,19 +39,40 @@ module.exports = function(app, orchestrator, providerManager) {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
+    let finished = false;
+    const timeout = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        sendEvent('error', { error: 'Search timed out (120s)' });
+        res.end();
+      }
+    }, 120000);
+
     try {
       sendEvent('phase', { phase: 'parsing', message: 'AI parses request...' });
       const result = await orchestrator.search(prompt, (phase) => {
         sendEvent('phase', { phase, message: getPhaseMessage(phase) });
       });
 
-      sendEvent('result', result);
-      res.write('event: done\ndata: {}\n\n');
+      if (!finished) {
+        finished = true;
+        clearTimeout(timeout);
+        sendEvent('result', result);
+        res.write('event: done\ndata: {}\n\n');
+      }
     } catch (e) {
       console.error('[API] /api/search/stream ERROR:', e.message);
-      sendEvent('error', { error: e.message });
+      if (!finished) {
+        finished = true;
+        clearTimeout(timeout);
+        sendEvent('error', { error: e.message });
+      }
     } finally {
-      res.end();
+      clearTimeout(timeout);
+      if (!finished) {
+        finished = true;
+        res.end();
+      }
     }
   });
 

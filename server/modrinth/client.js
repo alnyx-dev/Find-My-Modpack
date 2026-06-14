@@ -63,8 +63,9 @@ class ModrinthClient {
       return { hits: [], totalHits: 0 };
     }
 
-    console.log(`[MODRINTH] search() returned ${data.hits.length} hits, totalHits=${data.totalHits || 0}`);
-    return data;
+    const totalHits = data.totalHits || data.total_hits || 0;
+    console.log(`[MODRINTH] search() returned ${data.hits.length} hits, totalHits=${totalHits}`);
+    return { hits: data.hits, totalHits };
   }
 
   async getCategories() {

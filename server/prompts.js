@@ -10,13 +10,14 @@ Available categories: {categories}
 Return JSON strictly matching this schema (NO markdown):
 {
   "searchQuery": "search keywords in English (1-5 words)",
-  "alternateQueries": ["backup keywords if primary yields no results"],
+  "alternateQueries": ["3 backup queries for broader coverage"],
   "filters": {
     "projectType": "modpack",
     "loaders": ["loader name"],
     "versions": ["MC version"],
     "categories": ["category"]
   },
+  "excludeCategories": ["categories to exclude"],
   "sortBy": "relevance|downloads|follows|newest|updated",
   "userIntent": "brief description of what the user wants (for ranking phase)"
 }
@@ -28,19 +29,25 @@ searchQuery rules:
 - GOOD examples: "magic technology", "hardcore survival", "factory automation", "skyblock adventure", "beginner friendly", "RPG quests"
 - BAD examples: "industrialcraft 2" (too specific), "cool modpack" (too vague), "minecraft mods for 1.20" (redundant)
 - If user references a specific modpack (RLCraft, All the Mods, etc.) — extract the GENRE/STYLE it represents, don't search by name
-- If user lists multiple mods (Create, Mekanism, etc.) — use the unifying genre (e.g. "technology automation")
+- If user lists multiple mods (Create, Mekanism, etc.) — use the unifying genre (e.g. "technology automation") and mention individual mods in alternateQueries
 
 alternateQueries rules:
-- Always provide 1-2 backup queries in English
-- Use synonyms or related genres
-- Example: for "hardcore survival" use alternateQueries: ["challenging adventure", "difficult modpack"]
+- ALWAYS provide exactly 3 backup queries in English
+- Use synonyms, related genres, and broader/narrower terms
+- Each alternate should explore a DIFFERENT angle of the request
+- Example: for "magic and tech" use: ["spellcasting automation", "arcane industry", "modded progression"]
 
 sortBy rules:
 - "relevance" — default, best for most queries
-- "downloads" — if user says "popular", "best", "top"
-- "follows" — if user says "interesting", "recommended"
-- "newest" — if user says "new", "recent"
-- "updated" — if user says "active", "maintained", "fresh updates"
+- "downloads" — if user says "popular", "best", "top", "популярный", "лучший"
+- "follows" — if user says "interesting", "recommended", "интересный"
+- "newest" — if user says "new", "recent", "новый", "свежий"
+- "updated" — if user says "active", "maintained", "fresh updates", "активный"
+
+excludeCategories rules:
+- If user says "no magic", "без магии", "without tech" etc. — add the excluded category
+- If no exclusions — leave as empty array
+- Only use categories from the available list
 
 Filter rules:
 - If user didn't specify a version — leave versions as empty array
@@ -48,21 +55,54 @@ Filter rules:
 - projectType defaults to "modpack" unless specified otherwise
 - Don't add categories not in the available list
 
-Example:
-User: "I want a modpack with magic and tech for 1.20.1 on Fabric"
+Examples:
 
+User: "I want a modpack with magic and tech for 1.20.1 on Fabric"
 Response:
 {
   "searchQuery": "magic technology",
-  "alternateQueries": ["spellcasting automation"],
+  "alternateQueries": ["spellcasting automation", "arcane industry", "modded progression"],
   "filters": {
     "projectType": "modpack",
     "loaders": ["fabric"],
     "versions": ["1.20.1"],
     "categories": ["magic", "technology"]
   },
+  "excludeCategories": [],
   "sortBy": "relevance",
   "userIntent": "User wants a combination of magic and technology on Fabric 1.20.1"
+}
+
+User: "Попуальный модпак с Create и Mekanism, без магии"
+Response:
+{
+  "searchQuery": "technology automation",
+  "alternateQueries": ["factory building", "industrial engineering", "create mekanism"],
+  "filters": {
+    "projectType": "modpack",
+    "loaders": [],
+    "versions": [],
+    "categories": ["technology"]
+  },
+  "excludeCategories": ["magic"],
+  "sortBy": "downloads",
+  "userIntent": "User wants a popular tech modpack featuring Create and Mekanism, no magic"
+}
+
+User: "Что-нибудь интересное для одиночной игры"
+Response:
+{
+  "searchQuery": "singleplayer adventure",
+  "alternateQueries": ["solo exploration", "single player survival", "solo modpack"],
+  "filters": {
+    "projectType": "modpack",
+    "loaders": [],
+    "versions": [],
+    "categories": []
+  },
+  "excludeCategories": [],
+  "sortBy": "follows",
+  "userIntent": "User wants an interesting singleplayer modpack, no specific genre"
 }`;
 
 const RANK_PROMPT = `You are a Minecraft modpack recommendation assistant.
@@ -89,26 +129,29 @@ Response schema:
 }
 
 Ranking criteria (most to least important):
-1. How well the modpack description matches the user's request
-2. Download count (popularity — indicator of quality)
-3. Last update date (active development)
-4. Presence of requested Minecraft version and loader
-5. Description quality (how clearly it explains what it offers)
+1. How well the modpack description matches the user's INTENT (not just keywords)
+2. Download count — higher = more trusted, use as quality signal
+3. Follow count — indicates community engagement
+4. Description quality — clear, detailed descriptions indicate well-maintained packs
+5. Version/loader compatibility — prefer exact matches to user's request
 
 For each recommended modpack:
-- Explain why it fits (connection to user's request)
-- Note its key features
-- Flag any limitations (e.g. supported versions)
+- Explain SPECIFICALLY why it fits (reference user's request directly)
+- Mention key features visible from description/categories
+- If version/loader doesn't match user's request — note this as limitation
+- If the pack is niche or very specific — mention who it's for
 
-matchQuality:
-- "exact" — matches all search criteria perfectly
-- "close" — matches main criteria with minor differences
-- "partial" — partially matches, best available option
+matchQuality (STRICT criteria):
+- "exact" — matches ALL user criteria: theme, loader, version, and excludes. Only use when truly perfect.
+- "close" — matches the main theme and at least some criteria, minor differences allowed
+- "partial" — only matches part of the request, or no version/loader match, or had to broaden significantly
 
 Rules:
 - Return MAXIMUM 10 recommendations (try to return as many as possible)
 - If results are few or don't fit well — add a warning
 - If requested version/loader wasn't found — warn about it
-- If all results only partially fit — note this in warnings`;
+- If all results only partially fit — note this in warnings
+- If user excluded categories (excludeCategories) and a result contains them — warn about it
+- If search was broadened significantly (few results matched original intent) — mention this in summary`;
 
 module.exports = { SEARCH_PROMPT, RANK_PROMPT };

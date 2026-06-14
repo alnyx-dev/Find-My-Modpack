@@ -5,6 +5,7 @@ const AnthropicProvider = require('./providers/anthropic');
 const OllamaProvider = require('./providers/ollama');
 const OpenRouterProvider = require('./providers/openrouter');
 const CustomProvider = require('./providers/custom');
+const OpenCodeProvider = require('./providers/opencode');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config', 'providers.json');
 
@@ -16,7 +17,8 @@ class ProviderManager {
       anthropic: AnthropicProvider,
       ollama: OllamaProvider,
       openrouter: OpenRouterProvider,
-      custom: CustomProvider
+      custom: CustomProvider,
+      opencode: OpenCodeProvider
     };
     this.savedProviders = {};
     this.activeProviderId = null;

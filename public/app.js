@@ -51,6 +51,11 @@ const providerFields = {
     { name: 'baseURL', label: 'Base URL', type: 'text', placeholder: 'https://api.example.com/v1' },
     { name: 'apiKey', label: 'API Key (optional)', type: 'password', placeholder: 'sk-...' },
     { name: 'model', label: 'Model', type: 'text', placeholder: 'model-name' }
+  ],
+  opencode: [
+    { name: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-...' },
+    { name: 'model', label: 'Model', type: 'text', default: 'mimo-v2.5-free', placeholder: 'mimo-v2.5-free' },
+    { name: 'baseURL', label: 'Base URL', type: 'text', default: 'https://opencode.ai/zen/v1', placeholder: 'https://opencode.ai/zen/v1' }
   ]
 };
 
@@ -589,7 +594,7 @@ function createResultCard(r, index = 0) {
     </div>
     <div class="card-body">
       <div class="card-description">${escapeHtml(r.description || '')}</div>
-      <div class="card-explanation">${escapeHtml(r.explanation)}</div>
+      <div class="card-explanation">${escapeHtml(r.explanation || '')}</div>
       <div class="card-tags">${tagHtml}</div>
       ${(r.description || '').length > 100 ? `
         <button class="card-expand" onclick="this.closest('.result-card').classList.toggle('expanded'); this.querySelector('span').textContent = this.closest('.result-card').classList.contains('expanded') ? 'Show less' : 'Show more'">

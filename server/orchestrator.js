@@ -1,4 +1,5 @@
 const ModrinthClient = require('./modrinth/client');
+const ModpackDB = require('./db');
 const { buildFacets, buildBroadFacets } = require('./modrinth/facets');
 const { SEARCH_PROMPT, RANK_PROMPT } = require('./prompts');
 
@@ -23,12 +24,22 @@ class Orchestrator {
   constructor(providerManager) {
     this.providerManager = providerManager;
     this.modrinth = new ModrinthClient();
+    this.db = null;
     this.cache = {
       loaders: null,
       versions: null,
       categories: null,
       lastFetched: 0
     };
+
+    try {
+      this.db = new ModpackDB().init();
+      const count = this.db.getCount();
+      console.log(`[ORCH] Local DB loaded: ${count} modpacks`);
+    } catch (e) {
+      console.warn('[ORCH] Could not load local DB:', e.message);
+      console.warn('[ORCH] Will use API-only search. Run "npm run crawl" to populate the database.');
+    }
   }
 
   async getTags() {
@@ -86,7 +97,11 @@ class Orchestrator {
       searchParams.filters.categories = [];
     }
 
-    if (!Array.isArray(searchParams.filters.versions)) {
+    if (Array.isArray(searchParams.filters.versions)) {
+      const availableVersions = new Set(tags.versions.map(v => v.version));
+      searchParams.filters.versions = searchParams.filters.versions
+        .filter(v => availableVersions.has(v));
+    } else {
       searchParams.filters.versions = [];
     }
 
@@ -155,8 +170,8 @@ class Orchestrator {
       return {
         results: [],
         searchParams,
-        explanation: 'По вашему запросу ничего не найдено. Попробуйте изменить параметры поиска.',
-        warnings: ['Не найдено ни одного модпака по заданным критериям']
+        explanation: 'No results found for your query. Try adjusting your search parameters.',
+        warnings: ['No modpacks matched the specified criteria']
       };
     }
 
@@ -171,81 +186,146 @@ class Orchestrator {
     return {
       results: enrichedResults,
       searchParams,
-      explanation: rankedData.summary || 'Вот что я нашел по вашему запросу',
+      explanation: rankedData.summary || 'Here are the results for your query',
       warnings: rankedData.warnings || []
     };
   }
 
   async searchWithBroadening(searchParams, emitPhase) {
+    // Try local DB first
+    if (this.db && this.db.getCount() > 0) {
+      console.log('[ORCH] Phase 2: Searching local DB...');
+      const localResults = this.searchLocalDB(searchParams);
+      if (localResults.length >= MIN_RESULTS_FOR_RANKING) {
+        console.log(`[ORCH] Phase 2 - local DB returned ${localResults.length} hits, enough for ranking`);
+        return { hits: localResults, totalHits: localResults.length };
+      }
+      console.log(`[ORCH] Phase 2 - local DB only returned ${localResults.length} hits, supplementing with API...`);
+    }
+
+    // Fallback to API with parallel searches
+    console.log('[ORCH] Phase 2: Using Modrinth API (parallel)...');
+    return this.searchWithBroadeningAPI(searchParams, emitPhase);
+  }
+
+  searchLocalDB(searchParams) {
+    const { searchQuery, filters, sortBy } = searchParams;
+    const results = this.db.search(searchQuery, {
+      loaders: filters.loaders || [],
+      versions: filters.versions || [],
+      categories: filters.categories || [],
+      sortBy,
+      limit: 50
+    });
+    return results;
+  }
+
+  async searchWithBroadeningAPI(searchParams, emitPhase) {
     const { searchQuery, filters, sortBy, alternateQueries } = searchParams;
 
     const fullFacets = buildFacets(filters);
-    console.log('[ORCH] Phase 2: Full facets search...', { query: searchQuery, facets: fullFacets });
-
-    let results = await this.searchModrinth(searchQuery, fullFacets, sortBy);
-
-    if (results.hits && results.hits.length >= MIN_RESULTS_FOR_RANKING) {
-      console.log(`[ORCH] Phase 2 - full search returned ${results.hits.length} hits, enough for ranking`);
-      return results;
-    }
-
-    console.log(`[ORCH] Phase 2 - too few results (${results.hits?.length || 0}), trying step-by-step broadening...`);
-
     const broadFacets = buildBroadFacets(filters);
-    if (fullFacets.length > broadFacets.length) {
-      console.log('[ORCH] Phase 2 - trying broad facets (projectType only)...');
-      results = await this.searchModrinth(searchQuery, broadFacets, sortBy);
-      if (results.hits && results.hits.length >= MIN_RESULTS_FOR_RANKING) {
-        console.log(`[ORCH] Phase 2 - broad facets returned ${results.hits.length} hits`);
-        return results;
+    const hasBroadening = fullFacets.length > broadFacets.length;
+
+    console.log('[ORCH] Phase 2: Starting parallel searches...');
+    console.log('[ORCH] Phase 2 - fullFacets:', fullFacets);
+    console.log('[ORCH] Phase 2 - broadFacets:', broadFacets);
+
+    // Build all search tasks: primary + alternates with full facets + fallbacks
+    const tasks = [];
+
+    // Primary: full facets
+    tasks.push({ query: searchQuery, facets: fullFacets, label: 'primary-full' });
+
+    // Primary: broad facets (if different from full)
+    if (hasBroadening) {
+      tasks.push({ query: searchQuery, facets: broadFacets, label: 'primary-broad' });
+    }
+
+    // Primary: no facets (maximum broadening)
+    tasks.push({ query: searchQuery, facets: [], label: 'primary-nofacets' });
+
+    // Alternate queries with full facets
+    if (alternateQueries && alternateQueries.length > 0) {
+      for (const altQuery of alternateQueries) {
+        tasks.push({ query: altQuery, facets: fullFacets, label: `alt-full:${altQuery}` });
+        if (hasBroadening) {
+          tasks.push({ query: altQuery, facets: broadFacets, label: `alt-broad:${altQuery}` });
+        }
+        tasks.push({ query: altQuery, facets: [], label: `alt-nofacets:${altQuery}` });
       }
     }
 
-    if (alternateQueries && alternateQueries.length > 0) {
-      for (const altQuery of alternateQueries) {
-        console.log(`[ORCH] Phase 2 - trying alternate query: "${altQuery}"`);
-        const altResults = await this.searchModrinth(altQuery, broadFacets, sortBy);
-        if (altResults.hits && altResults.hits.length > results.hits.length) {
-          results = altResults;
-          if (results.hits.length >= MIN_RESULTS_FOR_RANKING) {
-            console.log(`[ORCH] Phase 2 - alternate query returned ${results.hits.length} hits`);
-            return results;
-          }
+    console.log(`[ORCH] Phase 2 - launching ${tasks.length} parallel searches...`);
+
+    // Run all searches in parallel
+    const settledResults = await Promise.allSettled(
+      tasks.map(async (task) => {
+        const result = await this.searchModrinth(task.query, task.facets, sortBy);
+        return { ...task, hits: result.hits || [], totalHits: result.totalHits || 0 };
+      })
+    );
+
+    // Collect all successful hits
+    const allHits = [];
+    for (const settled of settledResults) {
+      if (settled.status === 'fulfilled' && settled.value.hits.length > 0) {
+        allHits.push(settled.value);
+      }
+    }
+
+    console.log(`[ORCH] Phase 2 - ${allHits.length}/${tasks.length} searches returned results`);
+
+    if (allHits.length === 0) {
+      console.log('[ORCH] Phase 2 - no results found after all searches');
+      return { hits: [], totalHits: 0 };
+    }
+
+    // Merge and deduplicate, prioritizing primary-full results
+    const deduped = this.mergeAndDedup(allHits);
+    console.log(`[ORCH] Phase 2 - after dedup: ${deduped.length} unique hits`);
+
+    return { hits: deduped, totalHits: deduped.length };
+  }
+
+  mergeAndDedup(searchGroups) {
+    // Priority order: primary-full > primary-broad > alt-full > primary-nofacets > alt-broad > alt-nofacets
+    const priority = {
+      'primary-full': 0,
+      'primary-broad': 1,
+      'primary-nofacets': 2,
+    };
+
+    const getPriority = (label) => {
+      if (label.startsWith('alt-full:')) return 3;
+      if (label.startsWith('alt-broad:')) return 4;
+      if (label.startsWith('alt-nofacets:')) return 5;
+      return priority[label] ?? 10;
+    };
+
+    // Collect all hits with their source priority
+    const seen = new Map(); // slug → { hit, priority }
+
+    for (const group of searchGroups.sort((a, b) => getPriority(a.label) - getPriority(b.label))) {
+      for (const hit of group.hits) {
+        if (!seen.has(hit.slug)) {
+          seen.set(hit.slug, { hit, priority: getPriority(group.label) });
         }
       }
     }
 
-    console.log('[ORCH] Phase 2 - trying query-only (no facets)...');
-    const queryOnlyResults = await this.searchModrinth(searchQuery, [], sortBy);
-    if (queryOnlyResults.hits && queryOnlyResults.hits.length > results.hits.length) {
-      results = queryOnlyResults;
-    }
-
-    if (results.hits && results.hits.length > 0) {
-      console.log(`[ORCH] Phase 2 - best result: ${results.hits.length} hits`);
-      return results;
-    }
-
-    if (alternateQueries && alternateQueries.length > 0) {
-      console.log('[ORCH] Phase 2 - trying alternate queries with no facets...');
-      for (const altQuery of alternateQueries) {
-        const altResults = await this.searchModrinth(altQuery, [], sortBy);
-        if (altResults.hits && altResults.hits.length > 0) {
-          console.log(`[ORCH] Phase 2 - alternate query (no facets) returned ${altResults.hits.length} hits`);
-          return altResults;
-        }
-      }
-    }
-
-    console.log('[ORCH] Phase 2 - no results found after all broadening attempts');
-    return { hits: [], totalHits: 0 };
+    // Sort by priority (lower = better source) then by Modrinth relevance
+    return Array.from(seen.values())
+      .sort((a, b) => a.priority - b.priority)
+      .map(item => item.hit)
+      .slice(0, 50);
   }
 
   async rankResults(userQuery, searchParams, hits) {
     const rankPrompt = fillTemplate(RANK_PROMPT, {
       userQuery,
       searchParams: JSON.stringify(searchParams, null, 2),
-      results: JSON.stringify(hits.slice(0, 15), null, 2)
+      results: JSON.stringify(hits.slice(0, 25), null, 2)
     });
 
     const provider = this.providerManager.getActive();
@@ -259,7 +339,9 @@ class Orchestrator {
       console.log('[ORCH] Phase 3 - AI raw response:', rankResponse.substring(0, 500));
 
       const rankedData = parseJsonFromAI(rankResponse);
-      console.log(`[ORCH] Phase 3 - parsed ${rankedData.recommendations?.length || 0} recommendations`);
+      rankedData.recommendations = rankedData.recommendations || [];
+      rankedData.warnings = rankedData.warnings || [];
+      console.log(`[ORCH] Phase 3 - parsed ${rankedData.recommendations.length} recommendations`);
       return rankedData;
     } catch (e) {
       console.error('[ORCH] Phase 3 - parse error:', e.message);
@@ -271,13 +353,32 @@ class Orchestrator {
           explanation: h.description,
           matchQuality: 'partial'
         })),
-        summary: 'Результаты поиска',
+        summary: 'Search results',
         warnings: []
       };
     }
   }
 
   enrichResults(rankedData, hits) {
+    if (!rankedData.recommendations || !Array.isArray(rankedData.recommendations) || rankedData.recommendations.length === 0) {
+      console.log('[ORCH] Phase 3 - no valid recommendations from AI, using Modrinth order');
+      return hits.slice(0, 10).map(h => ({
+        slug: h.slug,
+        name: h.title,
+        explanation: h.description,
+        matchQuality: 'partial',
+        title: h.title,
+        description: h.description || '',
+        icon_url: h.icon_url || null,
+        downloads: h.downloads || 0,
+        follows: h.follows || 0,
+        categories: h.categories || [],
+        versions: h.versions || [],
+        project_type: h.project_type || 'modpack',
+        url: h.url || `https://modrinth.com/modpack/${h.slug}`
+      }));
+    }
+
     const aiSlugs = new Set(rankedData.recommendations.map(r => r.slug));
     const enrichedResults = rankedData.recommendations
       .map(rec => {
