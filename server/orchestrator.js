@@ -6,6 +6,12 @@ const { SEARCH_PROMPT, RANK_PROMPT } = require('./prompts');
 const VALID_SORT_OPTIONS = ['relevance', 'downloads', 'follows', 'newest', 'updated'];
 const CACHE_TTL = 3600000;
 const MIN_RESULTS_FOR_RANKING = 5;
+const MAX_FIELD_LENGTH = 300;
+
+function truncate(str, max = MAX_FIELD_LENGTH) {
+  if (!str || typeof str !== 'string') return '';
+  return str.length > max ? str.substring(0, max) + '...' : str;
+}
 
 function fillTemplate(template, vars) {
   return Object.entries(vars).reduce(
@@ -365,10 +371,10 @@ class Orchestrator {
       return hits.slice(0, 10).map(h => ({
         slug: h.slug,
         name: h.title,
-        explanation: h.description,
+        explanation: truncate(h.description),
         matchQuality: 'partial',
         title: h.title,
-        description: h.description || '',
+        description: truncate(h.description),
         icon_url: h.icon_url || null,
         downloads: h.downloads || 0,
         follows: h.follows || 0,
@@ -387,7 +393,7 @@ class Orchestrator {
         return {
           ...rec,
           title: hit.title || rec.name,
-          description: hit.description || '',
+          description: truncate(hit.description),
           icon_url: hit.icon_url || null,
           downloads: hit.downloads || 0,
           follows: hit.follows || 0,
@@ -404,10 +410,10 @@ class Orchestrator {
       return hits.slice(0, 10).map(h => ({
         slug: h.slug,
         name: h.title,
-        explanation: h.description,
+        explanation: truncate(h.description),
         matchQuality: 'partial',
         title: h.title,
-        description: h.description || '',
+        description: truncate(h.description),
         icon_url: h.icon_url || null,
         downloads: h.downloads || 0,
         follows: h.follows || 0,
@@ -427,10 +433,10 @@ class Orchestrator {
       enrichedResults.push(...remaining.map(h => ({
         slug: h.slug,
         name: h.title,
-        explanation: h.description,
+        explanation: truncate(h.description),
         matchQuality: 'partial',
         title: h.title,
-        description: h.description || '',
+        description: truncate(h.description),
         icon_url: h.icon_url || null,
         downloads: h.downloads || 0,
         follows: h.follows || 0,

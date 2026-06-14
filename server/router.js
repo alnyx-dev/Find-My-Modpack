@@ -59,7 +59,6 @@ module.exports = function(app, orchestrator, providerManager) {
         clearTimeout(timeout);
         sendEvent('result', result);
         res.write('event: done\ndata: {}\n\n');
-        res.end();
       }
     } catch (e) {
       console.error('[API] /api/search/stream ERROR:', e.message);
@@ -67,14 +66,10 @@ module.exports = function(app, orchestrator, providerManager) {
         finished = true;
         clearTimeout(timeout);
         sendEvent('error', { error: e.message });
-        res.end();
       }
     } finally {
       clearTimeout(timeout);
-      if (!finished) {
-        finished = true;
-        res.end();
-      }
+      res.end();
     }
   });
 

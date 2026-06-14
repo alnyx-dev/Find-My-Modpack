@@ -495,17 +495,18 @@ function renderResults(data, animate = false) {
   elements.searchBtn.disabled = false;
   elements.searchBtn.querySelector('.btn-text').textContent = 'Search';
 
-  if (!data.results || data.results.length === 0) {
+  if (!data || !Array.isArray(data.results) || data.results.length === 0) {
     hideProgress();
     elements.results.innerHTML = '';
     elements.emptyState.classList.remove('hidden');
-    showStatus(data.explanation || 'Nothing found', true);
-    showToast(data.explanation || 'Nothing found', 'error');
+    showStatus(data?.explanation || 'Nothing found', true);
+    showToast(data?.explanation || 'Nothing found', 'error');
     return;
   }
 
-  if (data.warnings && data.warnings.length > 0) {
-    showStatus(data.warnings.join(' '), true);
+  const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+  if (warnings.length > 0) {
+    showStatus(warnings.join(' '), true);
   } else {
     hideStatus();
   }
@@ -545,6 +546,8 @@ function renderResults(data, animate = false) {
 }
 
 function createResultCard(r, index = 0) {
+  if (!r) return document.createElement('div');
+
   const loaderTags = ['fabric', 'forge', 'neoforge', 'quilt', 'bukkit', 'spigot', 'paper', 'purpur'];
 
   const loaderIcons = {
@@ -554,9 +557,10 @@ function createResultCard(r, index = 0) {
     quilt: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>'
   };
 
-  const loaders = (r.categories || []).filter(c => loaderTags.includes(c));
-  const categories = (r.categories || []).filter(c => !loaderTags.includes(c));
-  const versions = (r.versions || []).slice(0, 3);
+  const categories = Array.isArray(r.categories) ? r.categories : [];
+  const loaders = categories.filter(c => loaderTags.includes(c));
+  const cats = categories.filter(c => !loaderTags.includes(c));
+  const versions = Array.isArray(r.versions) ? r.versions.slice(0, 3) : [];
 
   const matchBadge = r.matchQuality === 'exact'
     ? '<span class="match-badge match-exact">Exact match</span>'
@@ -572,7 +576,7 @@ function createResultCard(r, index = 0) {
 
   const tagHtml = `
     ${loaders.length ? `<div class="tag-row"><span class="tag-group-label">Loaders</span>${loaders.map(c => `<span class="tag ${tagColors[c] || ''}">${loaderIcons[c] || ''}${c}</span>`).join('')}</div>` : ''}
-    ${categories.length ? `<div class="tag-row"><span class="tag-group-label">Categories</span>${categories.map(c => `<span class="tag ${tagColors[c] || ''}">${c}</span>`).join('')}</div>` : ''}
+    ${cats.length ? `<div class="tag-row"><span class="tag-group-label">Categories</span>${cats.map(c => `<span class="tag ${tagColors[c] || ''}">${c}</span>`).join('')}</div>` : ''}
     ${versions.length ? `<div class="tag-row"><span class="tag-group-label">Versions</span>${versions.map(v => `<span class="tag tag-version">${v}</span>`).join('')}</div>` : ''}
   `;
 
