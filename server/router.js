@@ -90,8 +90,8 @@ module.exports = function(app, orchestrator, providerManager) {
       if (!id || !type || !config) {
         return res.status(400).json({ error: 'id, type, and config are required', code: 'VALIDATION_ERROR' });
       }
-      providerManager.save(id, { type, ...config });
-      res.json({ ok: true });
+      const savedId = providerManager.save(id, { type, ...config });
+      res.json({ ok: true, id: savedId });
     } catch (e) {
       console.error('[API] /api/providers ERROR:', e.message);
       res.status(500).json({ error: e.message, code: 'PROVIDER_ERROR' });

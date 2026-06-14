@@ -817,15 +817,17 @@ async function saveProvider() {
       body: JSON.stringify({ id, type, config })
     });
 
+    const data1 = await res1.json();
     if (!res1.ok) {
-      const err = await res1.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to save provider');
+      throw new Error(data1.error || 'Failed to save provider');
     }
+
+    const actualId = data1.id || id;
 
     const res2 = await fetch(`${API_BASE}/api/providers/active`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+      body: JSON.stringify({ id: actualId })
     });
 
     if (!res2.ok) {

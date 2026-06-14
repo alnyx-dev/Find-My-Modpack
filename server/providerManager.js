@@ -45,10 +45,28 @@ class ProviderManager {
     return Object.keys(this.adapters);
   }
 
+  findDuplicate(type, config) {
+    for (const [id, saved] of Object.entries(this.savedProviders)) {
+      if (saved.type !== type) continue;
+      const sameKey = (!saved.apiKey && !config.apiKey) || saved.apiKey === config.apiKey;
+      const sameUrl = (!saved.baseURL && !config.baseURL) || saved.baseURL === config.baseURL;
+      if (sameKey && sameUrl) return id;
+    }
+    return null;
+  }
+
   save(id, config) {
+    const existingId = this.findDuplicate(config.type, config);
+    if (existingId) {
+      console.log(`[PM] save() duplicate found, updating: ${existingId}`);
+      this.savedProviders[existingId] = config;
+      this._saveToFile();
+      return existingId;
+    }
     console.log(`[PM] save() id="${id}"`, { type: config.type, model: config.model });
     this.savedProviders[id] = config;
     this._saveToFile();
+    return id;
   }
 
   load() {
