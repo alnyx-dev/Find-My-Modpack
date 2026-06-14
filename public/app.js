@@ -333,6 +333,9 @@ function renderProviderList() {
             <div class="provider-item-name">${escapeHtml(p.model || id)}</div>
             <div class="provider-item-type">${escapeHtml(p.type)}</div>
           </div>
+          <button class="provider-item-edit" data-id="${id}" title="Edit provider">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
           <button class="provider-item-delete" data-id="${id}" title="Delete provider">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
           </button>
@@ -343,7 +346,7 @@ function renderProviderList() {
 
   elements.providerList.querySelectorAll('.provider-item').forEach(item => {
     item.addEventListener('click', (e) => {
-      if (e.target.closest('.provider-item-delete')) return;
+      if (e.target.closest('.provider-item-delete') || e.target.closest('.provider-item-edit')) return;
       const id = item.dataset.id;
       fetch(`${API_BASE}/api/providers/active`, {
         method: 'PUT',
@@ -368,16 +371,45 @@ function renderProviderList() {
     });
   });
 
+  elements.providerList.querySelectorAll('.provider-item-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const provider = savedProvidersData[id];
+      if (!provider) return;
+
+      editingProviderId = id;
+      elements.providerType.value = provider.type;
+      renderProviderFields(provider.type);
+      Object.entries(provider).forEach(([key, value]) => {
+        if (key !== 'type') {
+          const input = document.getElementById(`field_${key}`);
+          if (input) input.value = value;
+        }
+      });
+      showToast('Editing provider — modify fields and click Save', 'info');
+    });
+  });
+
   elements.providerList.querySelectorAll('.provider-item-delete').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const id = btn.dataset.id;
       fetch(`${API_BASE}/api/providers/${id}`, { method: 'DELETE' })
         .then(() => {
+          const wasActive = activeProviderIdData === id;
           delete savedProvidersData[id];
-          if (activeProviderIdData === id) activeProviderIdData = null;
+          if (wasActive) activeProviderIdData = null;
           renderProviderList();
-          showToast('Provider deleted', 'info');
+
+          if (wasActive) {
+            editingProviderId = null;
+            elements.providerType.value = 'openai';
+            renderProviderFields('openai');
+            showToast('Active provider deleted. Configure a new one.', 'info');
+          } else {
+            showToast('Provider deleted', 'info');
+          }
         });
     });
   });
@@ -754,6 +786,8 @@ async function testProvider() {
   `;
 }
 
+let editingProviderId = null;
+
 async function saveProvider() {
   const type = elements.providerType.value;
   const config = {};
@@ -769,7 +803,7 @@ async function saveProvider() {
     return;
   }
 
-  const id = 'provider-' + Date.now();
+  const id = editingProviderId || 'provider-' + Date.now();
 
   try {
     const res1 = await fetch(`${API_BASE}/api/providers`, {
@@ -778,23 +812,29 @@ async function saveProvider() {
       body: JSON.stringify({ id, type, config })
     });
 
+    if (!res1.ok) {
+      const err = await res1.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to save provider');
+    }
+
     const res2 = await fetch(`${API_BASE}/api/providers/active`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
     });
 
-    if (res1.ok && res2.ok) {
-      showToast('Provider saved and activated', 'success');
-      loadProviders();
-    } else {
-      showToast('Failed to save provider', 'error');
+    if (!res2.ok) {
+      const err = await res2.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to activate provider');
     }
+
+    showToast(editingProviderId ? 'Provider updated and activated' : 'Provider saved and activated', 'success');
+    editingProviderId = null;
+    loadProviders();
+    elements.settingsModal.classList.add('hidden');
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }
-
-  elements.settingsModal.classList.add('hidden');
 }
 
 // ===== EVENT LISTENERS =====
@@ -821,12 +861,17 @@ elements.settingsBtn.addEventListener('click', () => {
   loadProviders();
 });
 
-elements.closeModal.addEventListener('click', () => elements.settingsModal.classList.add('hidden'));
-elements.cancelBtn.addEventListener('click', () => elements.settingsModal.classList.add('hidden'));
+function closeSettingsModal() {
+  editingProviderId = null;
+  elements.settingsModal.classList.add('hidden');
+}
+
+elements.closeModal.addEventListener('click', closeSettingsModal);
+elements.cancelBtn.addEventListener('click', closeSettingsModal);
 
 elements.settingsModal.addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay')) {
-    elements.settingsModal.classList.add('hidden');
+    closeSettingsModal();
   }
 });
 

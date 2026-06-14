@@ -25,15 +25,27 @@ const providerManager = new ProviderManager();
 
 if (process.env.DEFAULT_PROVIDER_TYPE) {
   const id = 'default-' + process.env.DEFAULT_PROVIDER_TYPE;
-  const config = {
-    type: process.env.DEFAULT_PROVIDER_TYPE,
-    apiKey: process.env.DEFAULT_PROVIDER_API_KEY,
-    model: process.env.DEFAULT_PROVIDER_MODEL,
-    baseURL: process.env.DEFAULT_PROVIDER_BASE_URL
-  };
-  console.log(`[BOOT] Saving default provider: ${id}`, { type: config.type, model: config.model });
-  providerManager.save(id, config);
-  providerManager.setActive(id);
+  const existing = providerManager.getSaved()[id];
+
+  if (!existing) {
+    const config = {
+      type: process.env.DEFAULT_PROVIDER_TYPE,
+      apiKey: process.env.DEFAULT_PROVIDER_API_KEY,
+      model: process.env.DEFAULT_PROVIDER_MODEL,
+      baseURL: process.env.DEFAULT_PROVIDER_BASE_URL
+    };
+    console.log(`[BOOT] Creating default provider: ${id}`, { type: config.type, model: config.model });
+    providerManager.save(id, config);
+  } else {
+    console.log(`[BOOT] Default provider already exists: ${id}, keeping saved config`);
+  }
+
+  if (!providerManager.getActive()) {
+    console.log(`[BOOT] No active provider, activating default: ${id}`);
+    providerManager.setActive(id);
+  } else {
+    console.log(`[BOOT] Active provider already set, keeping: ${providerManager.activeProviderId}`);
+  }
 } else {
   console.log('[BOOT] No DEFAULT_PROVIDER_TYPE set in .env');
 }

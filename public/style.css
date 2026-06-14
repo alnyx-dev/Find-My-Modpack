@@ -1218,8 +1218,24 @@ body {
   opacity: 0;
 }
 
-.provider-item:hover .provider-item-delete { opacity: 1; }
+.provider-item-edit {
+  background: none;
+  border: none;
+  color: var(--text-4);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  opacity: 0;
+}
+
+.provider-item:hover .provider-item-delete,
+.provider-item:hover .provider-item-edit { opacity: 1; }
 .provider-item-delete:hover { color: var(--error); background: var(--error-dim); }
+.provider-item-edit:hover { color: var(--accent); background: var(--accent-dim); }
 
 /* ===== TEST BUTTON ===== */
 .test-btn {
