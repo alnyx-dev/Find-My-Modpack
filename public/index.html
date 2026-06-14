@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,22 +21,24 @@
         </svg>
         <div>
           <h1>Find My Modpack</h1>
-          <span class="subtitle">AI-powered modpack search</span>
+          <span class="subtitle" id="subtitle">AI-powered modpack search</span>
         </div>
       </div>
-      <button id="settingsBtn" class="settings-btn">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-        Settings
-      </button>
+      <div class="header-actions">
+        <button id="settingsBtn" class="settings-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <span id="settingsBtnText">Settings</span>
+        </button>
+      </div>
     </header>
 
     <main class="main">
       <div class="search-hero">
-        <h2>Find your perfect modpack</h2>
-        <p>Describe what you want in natural language</p>
+        <h2 id="heroTitle">Find your perfect modpack</h2>
+        <p id="heroDesc">Describe what you want in natural language</p>
       </div>
 
       <div class="search-box">
@@ -48,7 +50,7 @@
         </div>
         <textarea id="searchInput" placeholder="Magic modpack with tech for 1.20.1 Fabric, not too hardcore..." rows="1"></textarea>
         <button id="searchBtn" class="search-btn">
-          <span class="btn-text">Search</span>
+          <span class="btn-text" id="btnText">Search</span>
           <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
@@ -96,22 +98,23 @@
         <div class="loader-phases" id="loaderPhases">
           <div class="loader-phase active" data-phase="parsing">
             <div class="loader-phase-dot"></div>
-            <span>Анализ запроса</span>
+            <span>Parsing request</span>
           </div>
           <div class="loader-phase-line"></div>
           <div class="loader-phase" data-phase="searching">
             <div class="loader-phase-dot"></div>
-            <span>Поиск в Modrinth</span>
+            <span>Searching Modrinth</span>
           </div>
           <div class="loader-phase-line"></div>
           <div class="loader-phase" data-phase="ranking">
             <div class="loader-phase-dot"></div>
-            <span>Ранжирование</span>
+            <span>Ranking results</span>
           </div>
         </div>
       </div>
 
       <div id="status" class="status hidden"></div>
+      <div id="searchInfo"></div>
       <div id="results" class="results"></div>
 
       <div id="emptyState" class="empty-state">
@@ -201,7 +204,7 @@
             <path d="M2 17L12 22L22 17"/>
             <path d="M2 12L12 17L22 12"/>
           </svg>
-          <h2>AI Provider Settings</h2>
+          <h2 id="settingsTitle">AI Provider Settings</h2>
         </div>
         <button id="closeModal" class="close-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -213,13 +216,13 @@
         <div id="providerList" class="provider-list"></div>
 
         <div class="form-group">
-          <label for="providerType">New Provider</label>
+          <label for="providerType" id="newProviderLabel">New Provider</label>
           <select id="providerType">
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
-            <option value="ollama">Ollama (local)</option>
+            <option value="ollama" id="ollamaOption">Ollama (local)</option>
             <option value="openrouter">OpenRouter</option>
-            <option value="custom">Custom (OpenAI-compatible)</option>
+            <option value="custom" id="customOption">Custom (OpenAI-compatible)</option>
           </select>
         </div>
         <div id="providerFields"></div>
@@ -229,19 +232,19 @@
               <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
               <polyline points="22 4 12 14.01 9 11.01"/>
             </svg>
-            Test Connection
+            <span id="testBtnText">Test Connection</span>
           </button>
           <div id="testResult" class="test-result hidden"></div>
         </div>
         <div class="modal-actions">
-          <button id="cancelBtn" class="cancel-btn">Cancel</button>
+          <button id="cancelBtn" class="cancel-btn"><span id="cancelBtnText">Cancel</span></button>
           <button id="saveBtn" class="save-btn">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
               <polyline points="17 21 17 13 7 13 7 21"/>
               <polyline points="7 3 7 8 15 8"/>
             </svg>
-            Save
+            <span id="saveBtnText">Save</span>
           </button>
         </div>
       </div>

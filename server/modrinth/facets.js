@@ -6,7 +6,7 @@ function buildFacets({ projectType, loaders, versions, categories }) {
   }
 
   if (loaders && loaders.length > 0) {
-    facets.push(loaders.map(l => `loaders:${l}`));
+    facets.push(loaders.map(l => `categories:${l}`));
   }
 
   if (versions && versions.length > 0) {
@@ -20,4 +20,14 @@ function buildFacets({ projectType, loaders, versions, categories }) {
   return facets;
 }
 
-module.exports = { buildFacets };
+function buildBroadFacets({ projectType }) {
+  const facets = [];
+
+  if (projectType) {
+    facets.push([`project_type:${projectType}`]);
+  }
+
+  return facets;
+}
+
+module.exports = { buildFacets, buildBroadFacets };

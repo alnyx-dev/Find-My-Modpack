@@ -25,7 +25,8 @@ const elements = {
   burst: document.getElementById('burst'),
   burstShards: document.getElementById('burstShards'),
   burstDots: document.getElementById('burstDots'),
-  providerList: document.getElementById('providerList')
+  providerList: document.getElementById('providerList'),
+  searchInfo: document.getElementById('searchInfo')
 };
 
 const providerFields = {
@@ -214,6 +215,30 @@ function hideProgress() {
   });
 }
 
+// ===== SKELETON LOADING =====
+function showSkeletons(count = 6) {
+  elements.results.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const skeleton = document.createElement('div');
+    skeleton.className = 'result-card skeleton-card';
+    skeleton.innerHTML = `
+      <div class="card-header">
+        <div class="skeleton skeleton-icon"></div>
+        <div class="card-info">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-meta"></div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-text skeleton-text-short"></div>
+        <div class="skeleton skeleton-text skeleton-text-shorter"></div>
+      </div>
+    `;
+    elements.results.appendChild(skeleton);
+  }
+}
+
 // ===== SEARCH HISTORY =====
 function loadHistory() {
   const history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
@@ -221,9 +246,11 @@ function loadHistory() {
   return history;
 }
 
-function saveHistory(query) {
+function saveHistory(query, resultCount = 0) {
   let history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
-  history = [query, ...history.filter(q => q !== query)].slice(0, 8);
+  history = history.filter(h => h.query !== query);
+  history.unshift({ query, timestamp: Date.now(), resultCount });
+  history = history.slice(0, 8);
   localStorage.setItem('searchHistory', JSON.stringify(history));
   renderHistory(history);
 }
@@ -235,12 +262,16 @@ function renderHistory(history) {
   }
   elements.searchHistory.innerHTML = `
     <span class="search-history-label">Recent searches</span>
-    ${history.map(q => `
-      <button class="history-chip" data-query="${escapeHtml(q)}">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        ${escapeHtml(q.length > 30 ? q.substring(0, 30) + '...' : q)}
-      </button>
-    `).join('')}
+    ${history.map(h => {
+      const timeAgo = getTimeAgo(h.timestamp);
+      const count = h.resultCount != null ? ` \u00B7 ${h.resultCount}` : '';
+      return `
+        <button class="history-chip" data-query="${escapeHtml(h.query)}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ${escapeHtml(h.query.length > 28 ? h.query.substring(0, 28) + '...' : h.query)}<span class="history-meta">${timeAgo}${count}</span>
+        </button>
+      `;
+    }).join('')}
     <button class="history-chip" id="clearHistory" style="color: var(--error); border-color: rgba(255,107,107,0.2);">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
       Clear
@@ -263,6 +294,18 @@ function renderHistory(history) {
       showToast('History cleared', 'info');
     });
   }
+}
+
+function getTimeAgo(timestamp) {
+  if (!timestamp) return '';
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
 }
 
 // ===== PROVIDER LIST =====
@@ -374,13 +417,40 @@ function showLoading() {
   clearToasts();
   elements.searchBtn.disabled = true;
   elements.searchBtn.querySelector('.btn-text').textContent = 'Searching...';
-  elements.results.innerHTML = '';
   elements.emptyState.classList.add('hidden');
+  if (elements.searchInfo) elements.searchInfo.innerHTML = '';
   hideProgress();
   elements.burst.classList.remove('active');
   elements.burstShards.innerHTML = '';
   elements.burstDots.innerHTML = '';
   elements.progressContainer.classList.remove('visible', 'burst-exit');
+}
+
+// ===== SEARCH INFO (summary + searchParams) =====
+function renderSearchInfo(data) {
+  if (!elements.searchInfo) return;
+
+  const parts = [];
+
+  if (data.searchParams) {
+    const sp = data.searchParams;
+    const filters = [];
+    if (sp.filters?.loaders?.length) filters.push(sp.filters.loaders.join(', '));
+    if (sp.filters?.versions?.length) filters.push(sp.filters.versions.join(', '));
+    if (sp.filters?.categories?.length) filters.push(sp.filters.categories.join(', '));
+
+    if (filters.length || sp.searchQuery) {
+      parts.push(`<span class="search-info-params">Search: <strong>${escapeHtml(sp.searchQuery || '')}</strong>${filters.length ? ' | ' + escapeHtml(filters.join(', ')) : ''}${sp.sortBy && sp.sortBy !== 'relevance' ? ' | Sort: ' + escapeHtml(sp.sortBy) : ''}</span>`);
+    }
+  }
+
+  if (data.explanation) {
+    parts.push(`<span class="search-info-summary">${escapeHtml(data.explanation)}</span>`);
+  }
+
+  if (parts.length) {
+    elements.searchInfo.innerHTML = `<div class="search-info">${parts.join('')}</div>`;
+  }
 }
 
 // ===== RENDER RESULTS =====
@@ -403,6 +473,8 @@ function renderResults(data, animate = false) {
     hideStatus();
   }
 
+  renderSearchInfo(data);
+
   if (animate) {
     elements.results.innerHTML = '';
     elements.results.style.opacity = '0';
@@ -415,7 +487,7 @@ function renderResults(data, animate = false) {
 
       data.results.forEach((r, i) => {
         setTimeout(() => {
-          const card = createResultCard(r);
+          const card = createResultCard(r, i);
           card.classList.add('burst-in');
           elements.results.appendChild(card);
 
@@ -428,14 +500,14 @@ function renderResults(data, animate = false) {
       });
     }, 450);
   } else {
-    elements.results.innerHTML = data.results.map(r => createResultCard(r).outerHTML).join('');
+    elements.results.innerHTML = data.results.map((r, i) => createResultCard(r, i).outerHTML).join('');
     hideProgress();
   }
 
   showToast(`Found ${data.results.length} modpacks`, 'success', 3000);
 }
 
-function createResultCard(r) {
+function createResultCard(r, index = 0) {
   const loaderTags = ['fabric', 'forge', 'neoforge', 'quilt', 'bukkit', 'spigot', 'paper', 'purpur'];
 
   const loaderIcons = {
@@ -448,6 +520,18 @@ function createResultCard(r) {
   const loaders = (r.categories || []).filter(c => loaderTags.includes(c));
   const categories = (r.categories || []).filter(c => !loaderTags.includes(c));
   const versions = (r.versions || []).slice(0, 3);
+
+  const matchBadge = r.matchQuality === 'exact'
+    ? '<span class="match-badge match-exact">Exact match</span>'
+    : r.matchQuality === 'close'
+    ? '<span class="match-badge match-close">Close match</span>'
+    : '';
+
+  const rankBadge = index === 0
+    ? '<span class="rank-badge">Best match</span>'
+    : index < 3
+    ? `<span class="rank-badge rank-top">${index + 1}</span>`
+    : '';
 
   const tagHtml = `
     ${loaders.length ? `<div class="tag-row"><span class="tag-group-label">Loaders</span>${loaders.map(c => `<span class="tag ${tagColors[c] || ''}">${loaderIcons[c] || ''}${c}</span>`).join('')}</div>` : ''}
@@ -462,6 +546,7 @@ function createResultCard(r) {
       ${r.icon_url ? `<img src="${r.icon_url}" alt="" class="card-icon" onerror="this.style.display='none'">` : ''}
       <div class="card-info">
         <div class="card-title">
+          ${rankBadge}${matchBadge}
           <a href="${r.url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>
         </div>
         <div class="card-meta">
@@ -475,7 +560,7 @@ function createResultCard(r) {
       <div class="card-explanation">${escapeHtml(r.explanation)}</div>
       <div class="card-tags">${tagHtml}</div>
       ${(r.description || '').length > 100 ? `
-        <button class="card-expand" onclick="this.closest('.result-card').classList.toggle('expanded')">
+        <button class="card-expand" onclick="this.closest('.result-card').classList.toggle('expanded'); this.querySelector('span').textContent = this.closest('.result-card').classList.contains('expanded') ? 'Show less' : 'Show more'">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           <span>Show more</span>
         </button>
@@ -505,57 +590,90 @@ function autoResize(el) {
   el.classList.toggle('scrollable', el.scrollHeight > 138);
 }
 
-// ===== SEARCH =====
-let searchPhaseTimer = null;
+// ===== SEARCH (SSE STREAMING) =====
+let currentSearchAbort = null;
 
 async function search() {
   const query = elements.searchInput.value.trim();
   if (!query) return;
 
-  showLoading();
-  showProgress('parsing');
+  if (currentSearchAbort) {
+    currentSearchAbort.abort();
+    currentSearchAbort = null;
+  }
 
-  const phases = ['parsing', 'searching', 'ranking'];
-  let phaseIdx = 0;
-  searchPhaseTimer = setInterval(() => {
-    if (phaseIdx < phases.length - 1) {
-      phaseIdx++;
-      setPhase(phases[phaseIdx]);
-      const targets = { parsing: 20, searching: 65, ranking: 90 };
-      animateProgress(targets[phases[phaseIdx]] || 0);
-    }
-  }, 3000);
+  showLoading();
+  showSkeletons(6);
+  showProgress('parsing');
+  currentSearchAbort = new AbortController();
 
   try {
-    const res = await fetch(`${API_BASE}/api/search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: query })
-    });
+    const url = `${API_BASE}/api/search/stream?prompt=${encodeURIComponent(query)}`;
+    const response = await fetch(url, { signal: currentSearchAbort.signal });
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || 'Search failed');
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || 'Search failed');
     }
 
-    showProgressDone();
-    renderResults(data, true);
-    saveHistory(query);
-    autoResize(elements.searchInput);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let resultData = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      let eventType = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          const raw = line.slice(6);
+          try {
+            const parsed = JSON.parse(raw);
+
+            if (eventType === 'phase') {
+              const phase = parsed.phase;
+              setPhase(phase);
+              const targets = { parsing: 20, searching: 65, ranking: 90 };
+              animateProgress(targets[phase] || 0);
+            } else if (eventType === 'result') {
+              resultData = parsed;
+            } else if (eventType === 'error') {
+              throw new Error(parsed.error || 'Search error');
+            }
+          } catch (e) {
+            if (e.message && !e.message.includes('JSON')) throw e;
+          }
+        }
+      }
+    }
+
+    if (resultData) {
+      showProgressDone();
+      renderResults(resultData, true);
+      saveHistory(query, resultData.results?.length || 0);
+      autoResize(elements.searchInput);
+    } else {
+      throw new Error('No response from server');
+    }
   } catch (e) {
+    if (e.name === 'AbortError') return;
     elements.searchBtn.disabled = false;
     elements.searchBtn.querySelector('.btn-text').textContent = 'Search';
     hideProgress();
+    elements.results.innerHTML = '';
     elements.emptyState.classList.remove('hidden');
     showStatus('Error: ' + e.message, true);
     showToast(e.message, 'error');
-    elements.results.innerHTML = '';
   } finally {
-    if (searchPhaseTimer) {
-      clearInterval(searchPhaseTimer);
-      searchPhaseTimer = null;
-    }
+    currentSearchAbort = null;
   }
 }
 

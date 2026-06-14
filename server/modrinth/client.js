@@ -1,8 +1,45 @@
 const BASE_URL = 'https://api.modrinth.com/v2';
+const FETCH_TIMEOUT = 10000;
+const MAX_RETRIES = 3;
 
 class ModrinthClient {
-  async search({ query, facets, index = 'relevance', limit = 20, offset = 0 }) {
-    console.log(`[MODRINTH] search() query="${query}" index=${index} limit=${limit}`);
+  async _fetch(url, retries = 0) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'FindMyModpack/1.0' },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (response.status === 429 && retries < MAX_RETRIES) {
+        const resetMs = parseInt(response.headers.get('X-Ratelimit-Reset') || '5000', 10);
+        const delay = Math.min(resetMs, 5000) * (retries + 1);
+        console.log(`[MODRINTH] Rate limited, retrying in ${delay}ms (attempt ${retries + 1}/${MAX_RETRIES})...`);
+        await new Promise(r => setTimeout(r, delay));
+        return this._fetch(url, retries + 1);
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Modrinth API error: ${response.status} - ${text.substring(0, 200)}`);
+      }
+
+      return response.json();
+    } catch (e) {
+      clearTimeout(timeout);
+      if (e.name === 'AbortError') {
+        throw new Error('Modrinth API request timed out (10s)');
+      }
+      throw e;
+    }
+  }
+
+  async search({ query, facets, index = 'relevance', limit = 50, offset = 0 }) {
+    console.log(`[MODRINTH] search() query="${query}" index=${index} limit=${limit} offset=${offset}`);
     console.log(`[MODRINTH] search() facets:`, facets);
 
     const params = new URLSearchParams({
@@ -19,69 +56,36 @@ class ModrinthClient {
     const url = `${BASE_URL}/search?${params}`;
     console.log(`[MODRINTH] search() URL: ${url}`);
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'FindMyModpack/1.0'
-      }
-    });
+    const data = await this._fetch(url);
 
-    console.log(`[MODRINTH] search() status: ${response.status}`);
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`[MODRINTH] search() error body: ${text}`);
-      throw new Error(`Modrinth API error: ${response.status}`);
+    if (!Array.isArray(data.hits)) {
+      console.error('[MODRINTH] search() unexpected response shape:', JSON.stringify(data).substring(0, 300));
+      return { hits: [], totalHits: 0 };
     }
 
-    const data = await response.json();
-    console.log(`[MODRINTH] search() returned ${data.hits?.length || 0} hits, total=${data.totalHits || 0}`);
+    console.log(`[MODRINTH] search() returned ${data.hits.length} hits, totalHits=${data.totalHits || 0}`);
     return data;
   }
 
   async getCategories() {
     console.log('[MODRINTH] getCategories()');
-    const response = await fetch(`${BASE_URL}/tag/category`, {
-      headers: { 'User-Agent': 'FindMyModpack/1.0' }
-    });
-    console.log(`[MODRINTH] getCategories() status: ${response.status}`);
-    if (!response.ok) throw new Error(`Failed to fetch categories: ${response.status}`);
-    const data = await response.json();
+    const data = await this._fetch(`${BASE_URL}/tag/category`);
     console.log(`[MODRINTH] getCategories() returned ${data.length} items`);
-    return data;
+    return Array.isArray(data) ? data : [];
   }
 
   async getLoaders() {
     console.log('[MODRINTH] getLoaders()');
-    const response = await fetch(`${BASE_URL}/tag/loader`, {
-      headers: { 'User-Agent': 'FindMyModpack/1.0' }
-    });
-    console.log(`[MODRINTH] getLoaders() status: ${response.status}`);
-    if (!response.ok) throw new Error(`Failed to fetch loaders: ${response.status}`);
-    const data = await response.json();
+    const data = await this._fetch(`${BASE_URL}/tag/loader`);
     console.log(`[MODRINTH] getLoaders() returned ${data.length} items`);
-    return data;
+    return Array.isArray(data) ? data : [];
   }
 
   async getGameVersions() {
     console.log('[MODRINTH] getGameVersions()');
-    const response = await fetch(`${BASE_URL}/tag/game_version`, {
-      headers: { 'User-Agent': 'FindMyModpack/1.0' }
-    });
-    console.log(`[MODRINTH] getGameVersions() status: ${response.status}`);
-    if (!response.ok) throw new Error(`Failed to fetch game versions: ${response.status}`);
-    const data = await response.json();
+    const data = await this._fetch(`${BASE_URL}/tag/game_version`);
     console.log(`[MODRINTH] getGameVersions() returned ${data.length} items`);
-    return data;
-  }
-
-  async getProject(slugOrId) {
-    console.log(`[MODRINTH] getProject(${slugOrId})`);
-    const response = await fetch(`${BASE_URL}/project/${slugOrId}`, {
-      headers: { 'User-Agent': 'FindMyModpack/1.0' }
-    });
-    console.log(`[MODRINTH] getProject() status: ${response.status}`);
-    if (!response.ok) throw new Error(`Failed to fetch project: ${response.status}`);
-    return response.json();
+    return Array.isArray(data) ? data : [];
   }
 }
 
