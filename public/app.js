@@ -261,7 +261,7 @@ function saveHistory(query, resultCount = 0) {
 }
 
 function renderHistory(history) {
-  if (!history.length) {
+  if (!Array.isArray(history) || !history.length) {
     elements.searchHistory.innerHTML = '';
     return;
   }
@@ -661,6 +661,7 @@ async function search() {
     const decoder = new TextDecoder();
     let buffer = '';
     let resultData = null;
+    let eventType = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -670,7 +671,6 @@ async function search() {
       const lines = buffer.split('\n');
       buffer = lines.pop();
 
-      let eventType = '';
       for (const line of lines) {
         if (line.startsWith('event: ')) {
           eventType = line.slice(7).trim();
@@ -706,6 +706,7 @@ async function search() {
     }
   } catch (e) {
     if (e.name === 'AbortError') return;
+    console.error('[SEARCH ERROR]', e.stack || e.message, 'resultData:', resultData);
     elements.searchBtn.disabled = false;
     elements.searchBtn.querySelector('.btn-text').textContent = 'Search';
     hideProgress();
