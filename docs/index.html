@@ -75,7 +75,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
           </div>
           <h3>Multiple AI Providers</h3>
-          <p>OpenAI, Anthropic, Ollama, OpenRouter, or any OpenAI-compatible endpoint.</p>
+          <p>OpenAI, Anthropic, Ollama, OpenRouter, OpenCode Zen, or any OpenAI-compatible endpoint.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
@@ -90,6 +90,20 @@
           </div>
           <h3>Fast & Responsive</h3>
           <p>Dark theme, keyboard shortcuts, and a responsive UI that works on any device.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <h3>Live Streaming Progress</h3>
+          <p>Watch the AI work in real time with animated phase indicators and progress tracking.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <h3>Local Database</h3>
+          <p>Optional SQLite crawler for faster local search with full-text search support.</p>
         </div>
       </div>
     </section>
@@ -123,7 +137,7 @@
           </div>
           <div class="step-content">
             <h3>Search</h3>
-            <p>Structured query hits the Modrinth API. Results are broadened if needed.</p>
+            <p>Structured query searches the local database first, then Modrinth API. Results broaden if needed.</p>
           </div>
         </div>
         <div class="step-connector"></div>
@@ -149,7 +163,7 @@ cd Find-My-Modpack
 npm install
 cp .env.example .env
 npm start</code></pre>
-          <p class="code-note">Open <strong>http://localhost:3000</strong> in your browser</p>
+          <p class="code-note">Open <strong>http://localhost:3000</strong> in your browser. Optionally run <strong>npm run crawl</strong> to populate a local modpack database for faster search.</p>
         </div>
         <div class="setup-info">
           <h3>Prerequisites</h3>
@@ -180,6 +194,10 @@ npm start</code></pre>
             <li>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
               OpenRouter
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              OpenCode Zen
             </li>
             <li>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
