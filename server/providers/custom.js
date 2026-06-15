@@ -21,7 +21,7 @@ class CustomProvider extends BaseProvider {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
 
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
+    const fetchOptions = {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -30,7 +30,10 @@ class CustomProvider extends BaseProvider {
         ...(options.max_tokens ? { max_tokens: options.max_tokens } : {}),
         temperature: options.temperature || 0.7
       })
-    });
+    };
+    if (options.signal) fetchOptions.signal = options.signal;
+
+    const response = await fetch(`${this.baseURL}/chat/completions`, fetchOptions);
 
     console.log(`[Custom] complete() status: ${response.status}`);
 

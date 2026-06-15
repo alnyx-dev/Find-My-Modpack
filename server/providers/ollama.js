@@ -12,7 +12,7 @@ class OllamaProvider extends BaseProvider {
     console.log(`[Ollama] complete() model=${this.model} messages=${messages.length} max_tokens=${options.max_tokens || 1000}`);
     console.log(`[Ollama] complete() URL: ${this.baseURL}/v1/chat/completions`);
 
-    const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
+    const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -23,7 +23,10 @@ class OllamaProvider extends BaseProvider {
         ...(options.max_tokens ? { max_tokens: options.max_tokens } : {}),
         temperature: options.temperature || 0.7
       })
-    });
+    };
+    if (options.signal) fetchOptions.signal = options.signal;
+
+    const response = await fetch(`${this.baseURL}/v1/chat/completions`, fetchOptions);
 
     console.log(`[Ollama] complete() status: ${response.status}`);
 

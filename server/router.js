@@ -1,16 +1,57 @@
 const express = require('express');
 
+const MAX_PROMPT_LENGTH = 2000;
+
+const rateLimit = new Map();
+const RATE_LIMIT_WINDOW = 60000;
+const RATE_LIMIT_MAX = 10;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const record = rateLimit.get(ip) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW };
+  if (now > record.resetAt) {
+    record.count = 0;
+    record.resetAt = now + RATE_LIMIT_WINDOW;
+  }
+  record.count++;
+  rateLimit.set(ip, record);
+  return record.count <= RATE_LIMIT_MAX;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimit) {
+    if (now > record.resetAt) rateLimit.delete(ip);
+  }
+}, 60000);
+
 module.exports = function(app, orchestrator, providerManager) {
+
+  app.get('/api/health', (req, res) => {
+    const dbOk = orchestrator.db ? true : false;
+    const providerOk = providerManager.getActive() !== null;
+    res.json({
+      status: 'ok',
+      db: dbOk ? 'connected' : 'unavailable',
+      provider: providerOk ? 'configured' : 'missing'
+    });
+  });
 
   app.post('/api/search', async (req, res) => {
     const { prompt } = req.body;
     console.log(`[API] POST /api/search prompt="${prompt}"`);
 
-    try {
-      if (!prompt) {
-        return res.status(400).json({ error: 'Prompt is required', code: 'VALIDATION_ERROR' });
-      }
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required', code: 'VALIDATION_ERROR' });
+    }
+    if (typeof prompt !== 'string' || prompt.length > MAX_PROMPT_LENGTH) {
+      return res.status(400).json({ error: `Prompt must be 1-${MAX_PROMPT_LENGTH} characters`, code: 'VALIDATION_ERROR' });
+    }
+    if (!checkRateLimit(req.ip)) {
+      return res.status(429).json({ error: 'Too many requests', code: 'RATE_LIMIT' });
+    }
 
+    try {
       const result = await orchestrator.search(prompt);
       console.log(`[API] /api/search - got ${result.results?.length || 0} results`);
       res.json(result);
@@ -26,6 +67,12 @@ module.exports = function(app, orchestrator, providerManager) {
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required', code: 'VALIDATION_ERROR' });
+    }
+    if (typeof prompt !== 'string' || prompt.length > MAX_PROMPT_LENGTH) {
+      return res.status(400).json({ error: `Prompt must be 1-${MAX_PROMPT_LENGTH} characters`, code: 'VALIDATION_ERROR' });
+    }
+    if (!checkRateLimit(req.ip)) {
+      return res.status(429).json({ error: 'Too many requests', code: 'RATE_LIMIT' });
     }
 
     res.writeHead(200, {
@@ -44,7 +91,6 @@ module.exports = function(app, orchestrator, providerManager) {
       if (!finished) {
         finished = true;
         sendEvent('error', { error: 'Search timed out (120s)' });
-        res.end();
       }
     }, 120000);
 
@@ -75,7 +121,7 @@ module.exports = function(app, orchestrator, providerManager) {
 
   app.get('/api/providers', (req, res) => {
     const types = providerManager.list();
-    const saved = providerManager.getSaved();
+    const saved = providerManager.getSavedSafe();
     const active = providerManager.activeProviderId;
     res.json({ types, saved, active });
   });

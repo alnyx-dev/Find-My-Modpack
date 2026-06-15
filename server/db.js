@@ -105,7 +105,7 @@ class ModpackDB {
     insert(modpacks);
   }
 
-  search(query, { loaders = [], versions = [], categories = [], sortBy = 'relevance', limit = 50 } = {}) {
+  search(query, { loaders = [], versions = [], categories = [], excludeCategories = [], sortBy = 'relevance', limit = 50 } = {}) {
     const VALID_SORT = { relevance: true, downloads: true, follows: true, newest: true, updated: true };
     if (!VALID_SORT[sortBy]) sortBy = 'relevance';
 
@@ -151,6 +151,12 @@ class ModpackDB {
       const conditions = categories.map(c => `m.categories LIKE ?`);
       sql += ` AND (${conditions.join(' OR ')})`;
       params.push(...categories.map(c => `%"${c}"%`));
+    }
+
+    if (excludeCategories.length > 0) {
+      const conditions = excludeCategories.map(c => `m.categories NOT LIKE ?`);
+      sql += ` AND (${conditions.join(' AND ')})`;
+      params.push(...excludeCategories.map(c => `%"${c}"%`));
     }
 
     // Sort

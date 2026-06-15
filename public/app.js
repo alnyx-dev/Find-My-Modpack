@@ -246,18 +246,28 @@ function showSkeletons(count = 6) {
 
 // ===== SEARCH HISTORY =====
 function loadHistory() {
-  const history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
-  renderHistory(history);
-  return history;
+  try {
+    const history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+    renderHistory(history);
+    return history;
+  } catch (e) {
+    console.warn('[APP] Could not load search history:', e.message);
+    renderHistory([]);
+    return [];
+  }
 }
 
 function saveHistory(query, resultCount = 0) {
-  let history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
-  history = history.filter(h => h.query !== query);
-  history.unshift({ query, timestamp: Date.now(), resultCount });
-  history = history.slice(0, 8);
-  localStorage.setItem('searchHistory', JSON.stringify(history));
-  renderHistory(history);
+  try {
+    let history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+    history = history.filter(h => h.query !== query);
+    history.unshift({ query, timestamp: Date.now(), resultCount });
+    history = history.slice(0, 8);
+    localStorage.setItem('searchHistory', JSON.stringify(history));
+    renderHistory(history);
+  } catch (e) {
+    console.warn('[APP] Could not save to localStorage:', e.message);
+  }
 }
 
 function renderHistory(history) {
@@ -365,7 +375,7 @@ function renderProviderList() {
           elements.providerType.value = provider.type;
           renderProviderFields(provider.type);
           Object.entries(provider).forEach(([key, value]) => {
-            if (key !== 'type') {
+            if (key !== 'type' && key !== 'apiKey') {
               const input = document.getElementById(`field_${key}`);
               if (input) input.value = value;
             }
@@ -386,12 +396,12 @@ function renderProviderList() {
       editingProviderId = id;
       elements.providerType.value = provider.type;
       renderProviderFields(provider.type);
-      Object.entries(provider).forEach(([key, value]) => {
-        if (key !== 'type') {
-          const input = document.getElementById(`field_${key}`);
-          if (input) input.value = value;
-        }
-      });
+          Object.entries(provider).forEach(([key, value]) => {
+            if (key !== 'type' && key !== 'apiKey') {
+              const input = document.getElementById(`field_${key}`);
+              if (input) input.value = value;
+            }
+          });
       showToast('Editing provider — modify fields and click Save', 'info');
     });
   });
@@ -551,7 +561,7 @@ function createResultCard(r, index = 0) {
   const loaderTags = ['fabric', 'forge', 'neoforge', 'quilt', 'bukkit', 'spigot', 'paper', 'purpur'];
 
   const loaderIcons = {
-    fabric: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.4 7.3c.7 2.2 1 4.5.2 6.9-.3.9-1.4 2.2-2.4 2.2m12.9-9.1c-.7 2.2-1 4.5-.2 6.9.3.9 1.4 2.2 2.4 2.2M5.1 21.3h-2.4m18.5 0h2.4M4.6 15.4H2.9m19.3 0h1.8M4.3 12H2.6m19.8 0h1.7M9.1 12.6v2.4m7.8-2.4v2.4M12 18.5l-1.8.9m1.8-.9 1.8.9m-4.2-.9h2.4m0 .9-1.8-.9m1.8.9 1.8-.9M5.7 9.7c-.7 1.7-1 3.5-1 5.3 0 4.5 4.2 9.2 7.7 11.9 1.3 1 3.2 1.6 5 1.6M12 4.9c-1.6 0-3.1.3-4.6 1m11.8 3.8c.3-2.7.4-5.4-.7-8s-3.2-3.8-5.7-4.4M12 21.2l-3.6.6m3.6-.6 3.6.6"/></svg>',
+    fabric: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 7l9 5 9-5-9-5z"/><path d="M3 12l9 5 9-5"/><path d="M3 17l9 5 9-5"/></svg>',
     forge: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5h8v-2h12v2s-7 3.4-7 6 3.1 3.1 3.1 3.1l.9 3.9H5l1-4.1s3.8.1 4-2.9c.2-2.7-6.5-.7-8-6"/></svg>',
     neoforge: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19.2v2m0-2v2M8.4 1.3c.5 1.5.7 3 .1 4.6-.2.5-.9 1.5-1.6 1.5m8.7-6.1c-.5 1.5-.7 3-.1 4.6.2.6.9 1.5 1.6 1.5M3.6 15.8H1.9m18.5 0h1.7M3.2 12.1H1.5m19.3 0h1.8M8.1 12.7v1.6m7.8-1.6v1.6M10.8 18H12m0 1.2L10.8 18m2.4 0H12m0 1.2 1.2-1.2M4 9.7c-.5 1.2-.8 2.4-.8 3.7 0 3.1 2.9 6.3 5.3 8.2.9.7 2.2 1.1 3.4 1.1M12 4.9c-1.1 0-2.1.2-3.2.7M20 9.7c.5 1.2.8 2.4.8 3.7 0 3.1-2.9 6.3-5.3 8.2-.9.7-2.2 1.1-3.4 1.1M12 4.9c1.1 0 2.1.2 3.2.7M4 9.7c-.2-1.8-.3-3.7.5-5.5s2.2-2.6 3.9-3M20 9.7c.2-1.9.3-3.7-.5-5.5s-2.2-2.6-3.9-3M12 21.2l-2.4.4m2.4-.4 2.4.4"/></svg>',
     quilt: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>'
@@ -588,7 +598,7 @@ function createResultCard(r, index = 0) {
       <div class="card-info">
         <div class="card-title">
           ${rankBadge}${matchBadge}
-          <a href="${r.url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>
+          <a href="${r.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
         </div>
         <div class="card-meta">
           <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ${formatNumber(r.downloads)}</span>
@@ -612,10 +622,10 @@ function createResultCard(r, index = 0) {
 }
 
 // ===== UTILITIES =====
+const _escapeDiv = document.createElement('div');
 function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  _escapeDiv.textContent = text;
+  return _escapeDiv.innerHTML;
 }
 
 function formatNumber(n) {

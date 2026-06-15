@@ -50,7 +50,8 @@ class ProviderManager {
       if (saved.type !== type) continue;
       const sameKey = (!saved.apiKey && !config.apiKey) || saved.apiKey === config.apiKey;
       const sameUrl = (!saved.baseURL && !config.baseURL) || saved.baseURL === config.baseURL;
-      if (sameKey && sameUrl) return id;
+      const sameModel = (!saved.model && !config.model) || saved.model === config.model;
+      if (sameKey && sameUrl && sameModel) return id;
     }
     return null;
   }
@@ -59,6 +60,10 @@ class ProviderManager {
     const existingId = this.findDuplicate(config.type, config);
     if (existingId) {
       console.log(`[PM] save() duplicate found, updating: ${existingId}`);
+      const existing = this.savedProviders[existingId];
+      if (config.apiKey && config.apiKey.startsWith('***') && existing.apiKey) {
+        config.apiKey = existing.apiKey;
+      }
       this.savedProviders[existingId] = config;
       this._saveToFile();
       return existingId;
@@ -135,6 +140,17 @@ class ProviderManager {
 
   getSaved() {
     return this.savedProviders;
+  }
+
+  getSavedSafe() {
+    const safe = {};
+    for (const [id, config] of Object.entries(this.savedProviders)) {
+      safe[id] = { ...config };
+      if (safe[id].apiKey) {
+        safe[id].apiKey = '***' + safe[id].apiKey.slice(-4);
+      }
+    }
+    return safe;
   }
 }
 

@@ -86,3 +86,9 @@ process.on('SIGINT', () => {
   if (orchestrator.db) orchestrator.db.close();
   server.close(() => process.exit(0));
 });
+
+process.on('SIGTERM', () => {
+  console.log('\n[BOOT] SIGTERM received, shutting down...');
+  if (orchestrator.db) orchestrator.db.close();
+  server.close(() => process.exit(0));
+});

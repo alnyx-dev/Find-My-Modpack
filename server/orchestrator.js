@@ -26,6 +26,24 @@ function parseJsonFromAI(text) {
   return jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleaned);
 }
 
+function createResultEntry(hit, rec = null) {
+  return {
+    slug: hit.slug,
+    name: hit.title,
+    explanation: rec?.explanation || truncate(hit.description),
+    matchQuality: rec?.matchQuality || 'partial',
+    title: hit.title || rec?.name,
+    description: truncate(hit.description),
+    icon_url: hit.icon_url || null,
+    downloads: hit.downloads || 0,
+    follows: hit.follows || 0,
+    categories: hit.categories || [],
+    versions: hit.versions || [],
+    project_type: hit.project_type || 'modpack',
+    url: hit.url || `https://modrinth.com/modpack/${hit.slug}`
+  };
+}
+
 class Orchestrator {
   constructor(providerManager) {
     this.providerManager = providerManager;
@@ -114,6 +132,16 @@ class Orchestrator {
     if (!Array.isArray(searchParams.alternateQueries)) {
       searchParams.alternateQueries = [];
     }
+    searchParams.alternateQueries = searchParams.alternateQueries
+      .filter(q => typeof q === 'string' && q.trim().length > 0)
+      .slice(0, 3);
+
+    if (Array.isArray(searchParams.excludeCategories)) {
+      searchParams.excludeCategories = searchParams.excludeCategories
+        .filter(c => typeof c === 'string' && availableCategories.has(c));
+    } else {
+      searchParams.excludeCategories = [];
+    }
 
     return searchParams;
   }
@@ -150,7 +178,7 @@ class Orchestrator {
     });
 
     console.log('[ORCH] Phase 1: Calling AI to parse user query...');
-    const searchResponse = await provider.complete([
+    const searchResponse = await provider.completeWithTimeout([
       { role: 'system', content: searchPrompt },
       { role: 'user', content: userQuery }
     ]);
@@ -184,7 +212,7 @@ class Orchestrator {
     emitPhase('ranking');
     console.log(`[ORCH] Phase 3: Ranking ${modrinthResults.hits.length} results...`);
 
-    const rankedData = await this.rankResults(userQuery, searchParams, modrinthResults.hits);
+    const rankedData = await this.rankResults(userQuery, searchParams, modrinthResults.hits, provider);
 
     const enrichedResults = this.enrichResults(rankedData, modrinthResults.hits);
 
@@ -202,11 +230,12 @@ class Orchestrator {
     if (this.db && this.db.getCount() > 0) {
       console.log('[ORCH] Phase 2: Searching local DB...');
       const localResults = this.searchLocalDB(searchParams);
-      if (localResults.length >= MIN_RESULTS_FOR_RANKING) {
-        console.log(`[ORCH] Phase 2 - local DB returned ${localResults.length} hits, enough for ranking`);
-        return { hits: localResults, totalHits: localResults.length };
+      const filteredLocal = this.filterExcluded(localResults, searchParams.excludeCategories);
+      if (filteredLocal.length >= MIN_RESULTS_FOR_RANKING) {
+        console.log(`[ORCH] Phase 2 - local DB returned ${filteredLocal.length} hits after exclusion, enough for ranking`);
+        return { hits: filteredLocal, totalHits: filteredLocal.length };
       }
-      console.log(`[ORCH] Phase 2 - local DB only returned ${localResults.length} hits, supplementing with API...`);
+      console.log(`[ORCH] Phase 2 - local DB only returned ${filteredLocal.length} hits after exclusion, supplementing with API...`);
     }
 
     // Fallback to API with parallel searches
@@ -215,15 +244,25 @@ class Orchestrator {
   }
 
   searchLocalDB(searchParams) {
-    const { searchQuery, filters, sortBy } = searchParams;
+    const { searchQuery, filters, sortBy, excludeCategories } = searchParams;
     const results = this.db.search(searchQuery, {
       loaders: filters.loaders || [],
       versions: filters.versions || [],
       categories: filters.categories || [],
+      excludeCategories: excludeCategories || [],
       sortBy,
       limit: 50
     });
     return results;
+  }
+
+  filterExcluded(hits, excludeCategories) {
+    if (!excludeCategories || excludeCategories.length === 0) return hits;
+    const excludeSet = new Set(excludeCategories.map(c => c.toLowerCase()));
+    return hits.filter(hit => {
+      const cats = Array.isArray(hit.categories) ? hit.categories : [];
+      return !cats.some(c => excludeSet.has(c.toLowerCase()));
+    });
   }
 
   async searchWithBroadeningAPI(searchParams, emitPhase) {
@@ -291,7 +330,8 @@ class Orchestrator {
     const deduped = this.mergeAndDedup(allHits);
     console.log(`[ORCH] Phase 2 - after dedup: ${deduped.length} unique hits`);
 
-    return { hits: deduped, totalHits: deduped.length };
+    const filtered = this.filterExcluded(deduped, searchParams.excludeCategories);
+    return { hits: filtered, totalHits: filtered.length };
   }
 
   mergeAndDedup(searchGroups) {
@@ -327,17 +367,15 @@ class Orchestrator {
       .slice(0, 50);
   }
 
-  async rankResults(userQuery, searchParams, hits) {
+  async rankResults(userQuery, searchParams, hits, provider) {
     const rankPrompt = fillTemplate(RANK_PROMPT, {
       userQuery,
       searchParams: JSON.stringify(searchParams, null, 2),
       results: JSON.stringify(hits.slice(0, 25), null, 2)
     });
 
-    const provider = this.providerManager.getActive();
-
     try {
-      const rankResponse = await provider.complete([
+      const rankResponse = await provider.completeWithTimeout([
         { role: 'system', content: rankPrompt },
         { role: 'user', content: 'Проанализируй результаты и верни рекомендации' }
       ]);
@@ -368,21 +406,7 @@ class Orchestrator {
   enrichResults(rankedData, hits) {
     if (!rankedData.recommendations || !Array.isArray(rankedData.recommendations) || rankedData.recommendations.length === 0) {
       console.log('[ORCH] Phase 3 - no valid recommendations from AI, using Modrinth order');
-      return hits.slice(0, 10).map(h => ({
-        slug: h.slug,
-        name: h.title,
-        explanation: truncate(h.description),
-        matchQuality: 'partial',
-        title: h.title,
-        description: truncate(h.description),
-        icon_url: h.icon_url || null,
-        downloads: h.downloads || 0,
-        follows: h.follows || 0,
-        categories: h.categories || [],
-        versions: h.versions || [],
-        project_type: h.project_type || 'modpack',
-        url: h.url || `https://modrinth.com/modpack/${h.slug}`
-      }));
+      return hits.slice(0, 10).map(h => createResultEntry(h));
     }
 
     const aiSlugs = new Set(rankedData.recommendations.map(r => r.slug));
@@ -390,38 +414,13 @@ class Orchestrator {
       .map(rec => {
         const hit = hits.find(h => h.slug === rec.slug);
         if (!hit) return null;
-        return {
-          ...rec,
-          title: hit.title || rec.name,
-          description: truncate(hit.description),
-          icon_url: hit.icon_url || null,
-          downloads: hit.downloads || 0,
-          follows: hit.follows || 0,
-          categories: hit.categories || [],
-          versions: hit.versions || [],
-          project_type: hit.project_type || 'modpack',
-          url: hit.url || `https://modrinth.com/modpack/${rec.slug}`
-        };
+        return createResultEntry(hit, rec);
       })
       .filter(Boolean);
 
     if (enrichedResults.length === 0 && rankedData.recommendations.length > 0) {
       console.log('[ORCH] Phase 3 - AI slugs did not match Modrinth results, using Modrinth order');
-      return hits.slice(0, 10).map(h => ({
-        slug: h.slug,
-        name: h.title,
-        explanation: truncate(h.description),
-        matchQuality: 'partial',
-        title: h.title,
-        description: truncate(h.description),
-        icon_url: h.icon_url || null,
-        downloads: h.downloads || 0,
-        follows: h.follows || 0,
-        categories: h.categories || [],
-        versions: h.versions || [],
-        project_type: h.project_type || 'modpack',
-        url: h.url || `https://modrinth.com/modpack/${h.slug}`
-      }));
+      return hits.slice(0, 10).map(h => createResultEntry(h));
     }
 
     const remaining = hits
@@ -430,21 +429,7 @@ class Orchestrator {
 
     if (remaining.length > 0) {
       console.log(`[ORCH] Phase 3 - adding ${remaining.length} more from Modrinth`);
-      enrichedResults.push(...remaining.map(h => ({
-        slug: h.slug,
-        name: h.title,
-        explanation: truncate(h.description),
-        matchQuality: 'partial',
-        title: h.title,
-        description: truncate(h.description),
-        icon_url: h.icon_url || null,
-        downloads: h.downloads || 0,
-        follows: h.follows || 0,
-        categories: h.categories || [],
-        versions: h.versions || [],
-        project_type: h.project_type || 'modpack',
-        url: h.url || `https://modrinth.com/modpack/${h.slug}`
-      })));
+      enrichedResults.push(...remaining.map(h => createResultEntry(h)));
     }
 
     return enrichedResults;

@@ -29,7 +29,7 @@ class AnthropicProvider extends BaseProvider {
 
     console.log(`[Anthropic] complete() POST https://api.anthropic.com/v1/messages`);
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -37,7 +37,10 @@ class AnthropicProvider extends BaseProvider {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify(body)
-    });
+    };
+    if (options.signal) fetchOptions.signal = options.signal;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', fetchOptions);
 
     console.log(`[Anthropic] complete() status: ${response.status}`);
 

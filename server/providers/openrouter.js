@@ -12,7 +12,7 @@ class OpenRouterProvider extends BaseProvider {
     console.log(`[OpenRouter] complete() model=${this.model} messages=${messages.length} max_tokens=${options.max_tokens || 1000}`);
     console.log(`[OpenRouter] complete() POST https://openrouter.ai/api/v1/chat/completions`);
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -26,7 +26,10 @@ class OpenRouterProvider extends BaseProvider {
         ...(options.max_tokens ? { max_tokens: options.max_tokens } : {}),
         temperature: options.temperature || 0.7
       })
-    });
+    };
+    if (options.signal) fetchOptions.signal = options.signal;
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', fetchOptions);
 
     console.log(`[OpenRouter] complete() status: ${response.status}`);
 

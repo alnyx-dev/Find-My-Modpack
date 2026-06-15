@@ -13,7 +13,7 @@ class OpenAIProvider extends BaseProvider {
     console.log(`[OpenAI] complete() model=${this.model} messages=${messages.length} max_tokens=${options.max_tokens || 1000}`);
     console.log(`[OpenAI] complete() URL: ${this.baseURL}/chat/completions`);
 
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
+    const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -25,7 +25,10 @@ class OpenAIProvider extends BaseProvider {
         ...(options.max_tokens ? { max_tokens: options.max_tokens } : {}),
         temperature: options.temperature || 0.7
       })
-    });
+    };
+    if (options.signal) fetchOptions.signal = options.signal;
+
+    const response = await fetch(`${this.baseURL}/chat/completions`, fetchOptions);
 
     console.log(`[OpenAI] complete() status: ${response.status}`);
 
