@@ -1,6 +1,6 @@
 {
   "name": "find-my-modpack",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "AI-powered natural language search for Minecraft modpacks on Modrinth",
   "main": "server/index.js",
   "scripts": {
