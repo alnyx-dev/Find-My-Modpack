@@ -10,6 +10,13 @@ console.log('[BOOT] Starting Find My Modpack...');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
+
+// Trust proxy only when explicitly configured. Enabling it blindly would let
+// clients spoof X-Forwarded-For and bypass the per-IP rate limiter.
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? true : process.env.TRUST_PROXY);
+}
 
 app.use((req, res, next) => {
   if (req.url.startsWith('/api')) {
@@ -18,7 +25,23 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors());
+// Restrict CORS. Requests without an Origin header (same-origin browser
+// requests, curl, server-to-server) are allowed. Cross-origin browser
+// requests are only allowed for origins listed in ALLOWED_ORIGINS so that a
+// random website the user visits cannot drive the local provider/admin API.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  }
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -68,8 +91,8 @@ app.all('*', (req, res) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`[BOOT] Find My Modpack running on http://localhost:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`[BOOT] Find My Modpack running on http://${HOST}:${PORT}`);
 });
 
 server.on('error', (err) => {

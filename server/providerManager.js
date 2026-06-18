@@ -9,6 +9,27 @@ const OpenCodeProvider = require('./providers/opencode');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config', 'providers.json');
 
+// Validate user-supplied provider config. baseURL must be a well-formed
+// http(s) URL. This blocks SSRF/LFI vectors via schemes like file:, gopher:,
+// data: etc. (loopback/private hosts are intentionally still allowed because
+// Ollama and other local backends legitimately run on localhost).
+function validateConfig(config) {
+  if (!config || typeof config !== 'object') {
+    throw new Error('Invalid provider config');
+  }
+  if (config.baseURL) {
+    let parsed;
+    try {
+      parsed = new URL(config.baseURL);
+    } catch (e) {
+      throw new Error('Invalid baseURL: not a valid URL');
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Invalid baseURL: only http and https protocols are allowed');
+    }
+  }
+}
+
 class ProviderManager {
   constructor() {
     console.log('[PM] Initializing ProviderManager...');
@@ -38,6 +59,7 @@ class ProviderManager {
       console.error(`[PM] create() - unknown type: ${type}`);
       throw new Error(`Unknown provider type: ${type}`);
     }
+    validateConfig(config);
     return new AdapterClass({ ...config, name: type });
   }
 
@@ -57,13 +79,25 @@ class ProviderManager {
   }
 
   save(id, config) {
+    // The client never receives real API keys (see getSavedSafe), only a
+    // masked placeholder like "***1234". When such a placeholder is submitted
+    // back (e.g. editing a provider without changing the key), restore the real
+    // key from the existing record. This must happen BEFORE duplicate detection,
+    // otherwise the masked value would be stored as the actual key.
+    if (config.apiKey && config.apiKey.startsWith('***')) {
+      const existing = this.savedProviders[id];
+      if (existing && existing.apiKey) {
+        config.apiKey = existing.apiKey;
+      } else {
+        delete config.apiKey;
+      }
+    }
+
+    validateConfig(config);
+
     const existingId = this.findDuplicate(config.type, config);
     if (existingId) {
       console.log(`[PM] save() duplicate found, updating: ${existingId}`);
-      const existing = this.savedProviders[existingId];
-      if (config.apiKey && config.apiKey.startsWith('***') && existing.apiKey) {
-        config.apiKey = existing.apiKey;
-      }
       this.savedProviders[existingId] = config;
       this._saveToFile();
       return existingId;
@@ -101,7 +135,9 @@ class ProviderManager {
         providers: this.savedProviders,
         activeProviderId: this.activeProviderId
       }, null, 2);
-      fs.writeFileSync(CONFIG_PATH, content);
+      // Store with owner-only permissions - this file contains plaintext API keys.
+      fs.writeFileSync(CONFIG_PATH, content, { mode: 0o600 });
+      try { fs.chmodSync(CONFIG_PATH, 0o600); } catch (e) { /* best effort */ }
       console.log(`[PM] _saveToFile() - saved OK, size=${content.length}`);
     } catch (e) {
       console.error('[PM] _saveToFile() FAILED:', e.message);
