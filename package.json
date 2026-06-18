@@ -16,6 +16,9 @@
   ],
   "author": "alnyx",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "better-sqlite3": "^12.10.1",
     "cors": "^2.8.5",

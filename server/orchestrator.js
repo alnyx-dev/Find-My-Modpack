@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const ModrinthClient = require('./modrinth/client');
 const ModpackDB = require('./db');
 const { buildFacets, buildBroadFacets } = require('./modrinth/facets');
@@ -7,23 +9,63 @@ const VALID_SORT_OPTIONS = ['relevance', 'downloads', 'follows', 'newest', 'upda
 const CACHE_TTL = 3600000;
 const MIN_RESULTS_FOR_RANKING = 5;
 const MAX_FIELD_LENGTH = 300;
+const TAGS_CACHE_PATH = path.join(__dirname, '..', 'data', 'tags.json');
 
 function truncate(str, max = MAX_FIELD_LENGTH) {
   if (!str || typeof str !== 'string') return '';
   return str.length > max ? str.substring(0, max) + '...' : str;
 }
 
+// Single-pass template fill. Replacing tokens sequentially (reduce + replaceAll)
+// let a user-supplied value that happened to contain "{results}" get expanded by
+// a later pass. A single regex pass substitutes each token exactly once and
+// ignores tokens introduced by the substituted values.
 function fillTemplate(template, vars) {
-  return Object.entries(vars).reduce(
-    (t, [key, val]) => t.replaceAll(`{${key}}`, val),
-    template
+  return template.replace(/\{(\w+)\}/g, (match, key) =>
+    Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : match
   );
 }
 
+// Extract the first balanced JSON object from text, correctly handling braces
+// that appear inside strings. More robust than a greedy /\{[\s\S]*\}/ match.
+function extractBalancedJson(text) {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 function parseJsonFromAI(text) {
-  let cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-  return jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleaned);
+  const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+
+  const balanced = extractBalancedJson(cleaned);
+  if (balanced) {
+    try { return JSON.parse(balanced); } catch (e) { /* fall through */ }
+  }
+
+  const greedy = cleaned.match(/\{[\s\S]*\}/);
+  if (greedy) {
+    try { return JSON.parse(greedy[0]); } catch (e) { /* fall through */ }
+  }
+
+  return JSON.parse(cleaned.trim());
 }
 
 function createResultEntry(hit, rec = null) {
@@ -78,15 +120,63 @@ class Orchestrator {
     }
 
     console.log('[ORCH] getTags() - fetching fresh tags from Modrinth...');
-    const [loaders, versions, categories] = await Promise.all([
-      this.modrinth.getLoaders(),
-      this.modrinth.getGameVersions(),
-      this.modrinth.getCategories()
-    ]);
+    try {
+      const [loaders, versions, categories] = await Promise.all([
+        this.modrinth.getLoaders(),
+        this.modrinth.getGameVersions(),
+        this.modrinth.getCategories()
+      ]);
 
-    this.cache = { loaders, versions, categories, lastFetched: now };
-    console.log(`[ORCH] getTags() - loaders: ${loaders.length}, versions: ${versions.length}, categories: ${categories.length}`);
-    return { loaders, versions, categories };
+      this.cache = { loaders, versions, categories, lastFetched: now };
+      this._saveTagsToDisk({ loaders, versions, categories });
+      console.log(`[ORCH] getTags() - loaders: ${loaders.length}, versions: ${versions.length}, categories: ${categories.length}`);
+      return { loaders, versions, categories };
+    } catch (e) {
+      // Modrinth tag endpoints are required to build prompts/validate params, but
+      // they should not take down local-DB search when Modrinth is unreachable.
+      console.warn('[ORCH] getTags() - Modrinth fetch failed:', e.message);
+
+      if (this.cache.loaders) {
+        console.warn('[ORCH] getTags() - falling back to stale in-memory tags');
+        return {
+          loaders: this.cache.loaders,
+          versions: this.cache.versions,
+          categories: this.cache.categories
+        };
+      }
+
+      const disk = this._loadTagsFromDisk();
+      if (disk) {
+        console.warn('[ORCH] getTags() - falling back to tags cached on disk');
+        this.cache = { ...disk, lastFetched: now };
+        return disk;
+      }
+
+      throw new Error('Could not load Modrinth tags and no cached tags are available');
+    }
+  }
+
+  _saveTagsToDisk(tags) {
+    try {
+      fs.mkdirSync(path.dirname(TAGS_CACHE_PATH), { recursive: true });
+      fs.writeFileSync(TAGS_CACHE_PATH, JSON.stringify(tags));
+    } catch (e) {
+      console.warn('[ORCH] _saveTagsToDisk() failed:', e.message);
+    }
+  }
+
+  _loadTagsFromDisk() {
+    try {
+      if (fs.existsSync(TAGS_CACHE_PATH)) {
+        const data = JSON.parse(fs.readFileSync(TAGS_CACHE_PATH, 'utf-8'));
+        if (data && Array.isArray(data.loaders) && Array.isArray(data.versions) && Array.isArray(data.categories)) {
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn('[ORCH] _loadTagsFromDisk() failed:', e.message);
+    }
+    return null;
   }
 
   validateSearchParams(searchParams, tags) {

@@ -84,10 +84,13 @@ function showToast(message, type = 'info', duration = 5000) {
   toast.innerHTML = `
     <span class="toast-icon">${iconSvg}</span>
     <span>${escapeHtml(message)}</span>
-    <button class="toast-close" onclick="this.parentElement.remove()">
+    <button class="toast-close" type="button" aria-label="Close">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
     </button>
   `;
+
+  const closeBtn = toast.querySelector('.toast-close');
+  if (closeBtn) closeBtn.addEventListener('click', () => toast.remove());
 
   elements.toasts.appendChild(toast);
 
@@ -548,7 +551,8 @@ function renderResults(data, animate = false) {
       });
     }, 450);
   } else {
-    elements.results.innerHTML = data.results.map((r, i) => createResultCard(r, i).outerHTML).join('');
+    elements.results.innerHTML = '';
+    data.results.forEach((r, i) => elements.results.appendChild(createResultCard(r, i)));
     hideProgress();
   }
 
@@ -585,20 +589,20 @@ function createResultCard(r, index = 0) {
     : '';
 
   const tagHtml = `
-    ${loaders.length ? `<div class="tag-row"><span class="tag-group-label">Loaders</span>${loaders.map(c => `<span class="tag ${tagColors[c] || ''}">${loaderIcons[c] || ''}${c}</span>`).join('')}</div>` : ''}
-    ${cats.length ? `<div class="tag-row"><span class="tag-group-label">Categories</span>${cats.map(c => `<span class="tag ${tagColors[c] || ''}">${c}</span>`).join('')}</div>` : ''}
-    ${versions.length ? `<div class="tag-row"><span class="tag-group-label">Versions</span>${versions.map(v => `<span class="tag tag-version">${v}</span>`).join('')}</div>` : ''}
+    ${loaders.length ? `<div class="tag-row"><span class="tag-group-label">Loaders</span>${loaders.map(c => `<span class="tag ${tagColors[c] || ''}">${loaderIcons[c] || ''}${escapeHtml(c)}</span>`).join('')}</div>` : ''}
+    ${cats.length ? `<div class="tag-row"><span class="tag-group-label">Categories</span>${cats.map(c => `<span class="tag ${tagColors[c] || ''}">${escapeHtml(c)}</span>`).join('')}</div>` : ''}
+    ${versions.length ? `<div class="tag-row"><span class="tag-group-label">Versions</span>${versions.map(v => `<span class="tag tag-version">${escapeHtml(v)}</span>`).join('')}</div>` : ''}
   `;
 
   const div = document.createElement('div');
   div.className = 'result-card';
   div.innerHTML = `
     <div class="card-header">
-      ${r.icon_url ? `<img src="${r.icon_url}" alt="" class="card-icon" onerror="this.style.display='none'">` : ''}
+      ${safeUrl(r.icon_url) ? `<img src="${escapeHtml(safeUrl(r.icon_url))}" alt="" class="card-icon">` : ''}
       <div class="card-info">
         <div class="card-title">
           ${rankBadge}${matchBadge}
-          <a href="${r.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
+          <a href="${escapeHtml(safeUrl(r.url) || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
         </div>
         <div class="card-meta">
           <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ${formatNumber(r.downloads)}</span>
@@ -611,21 +615,48 @@ function createResultCard(r, index = 0) {
       <div class="card-explanation">${escapeHtml(r.explanation || '')}</div>
       <div class="card-tags">${tagHtml}</div>
       ${(r.description || '').length > 100 ? `
-        <button class="card-expand" onclick="this.closest('.result-card').classList.toggle('expanded'); this.querySelector('span').textContent = this.closest('.result-card').classList.contains('expanded') ? 'Show less' : 'Show more'">
+        <button class="card-expand" type="button">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           <span>Show more</span>
         </button>
       ` : ''}
     </div>
   `;
+
+  const icon = div.querySelector('.card-icon');
+  if (icon) icon.addEventListener('error', () => { icon.style.display = 'none'; });
+
+  const expandBtn = div.querySelector('.card-expand');
+  if (expandBtn) {
+    expandBtn.addEventListener('click', () => {
+      const card = expandBtn.closest('.result-card');
+      card.classList.toggle('expanded');
+      const span = expandBtn.querySelector('span');
+      if (span) span.textContent = card.classList.contains('expanded') ? 'Show less' : 'Show more';
+    });
+  }
+
   return div;
 }
 
 // ===== UTILITIES =====
 const _escapeDiv = document.createElement('div');
 function escapeHtml(text) {
-  _escapeDiv.textContent = text;
+  _escapeDiv.textContent = text == null ? '' : text;
   return _escapeDiv.innerHTML;
+}
+
+// Return the URL only if it is a safe http(s) URL, otherwise an empty string.
+// Prevents javascript:/data: and other dangerous schemes from being placed in
+// href/src attributes built from external (Modrinth/AI) data.
+function safeUrl(url) {
+  if (typeof url !== 'string' || !url) return '';
+  try {
+    const u = new URL(url, window.location.origin);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+  } catch (e) {
+    return '';
+  }
 }
 
 function formatNumber(n) {

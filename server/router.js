@@ -91,8 +91,15 @@ module.exports = function(app, orchestrator, providerManager) {
       if (!finished) {
         finished = true;
         sendEvent('error', { error: 'Search timed out (120s)' });
+        res.end();
       }
     }, 120000);
+
+    // If the client disconnects, stop the timer and avoid writing to a dead socket.
+    req.on('close', () => {
+      finished = true;
+      clearTimeout(timeout);
+    });
 
     try {
       sendEvent('phase', { phase: 'parsing', message: 'AI parses request...' });
