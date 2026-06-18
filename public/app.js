@@ -1,956 +1,462 @@
+'use strict';
+
+/* =====================================================================
+   Find My Modpack — frontend wired to the real backend API.
+   Endpoints used:
+     GET  /api/search/stream?prompt=...   (SSE: phase | result | error | done)
+     GET  /api/providers                  -> { types, saved, active }
+     POST /api/providers                  { id, type, config }
+     POST /api/providers/test             { type, config } -> { ok, error?, latency }
+     PUT  /api/providers/active           { id }
+   ===================================================================== */
+
 const API_BASE = '';
 
-const elements = {
-  searchInput: document.getElementById('searchInput'),
-  searchBtn: document.getElementById('searchBtn'),
-  status: document.getElementById('status'),
-  results: document.getElementById('results'),
-  emptyState: document.getElementById('emptyState'),
-  settingsBtn: document.getElementById('settingsBtn'),
-  settingsModal: document.getElementById('settingsModal'),
-  closeModal: document.getElementById('closeModal'),
-  providerType: document.getElementById('providerType'),
-  providerFields: document.getElementById('providerFields'),
-  testBtn: document.getElementById('testBtn'),
-  testResult: document.getElementById('testResult'),
-  saveBtn: document.getElementById('saveBtn'),
-  cancelBtn: document.getElementById('cancelBtn'),
-  toasts: document.getElementById('toasts'),
-  searchHistory: document.getElementById('searchHistory'),
-  progressContainer: document.getElementById('progressContainer'),
-  ringProgress: document.getElementById('ringProgress'),
-  loaderPercent: document.getElementById('loaderPercent'),
-  loaderPhases: document.getElementById('loaderPhases'),
-  loaderParticles: document.getElementById('loaderParticles'),
-  burst: document.getElementById('burst'),
-  burstShards: document.getElementById('burstShards'),
-  burstDots: document.getElementById('burstDots'),
-  providerList: document.getElementById('providerList'),
-  searchInfo: document.getElementById('searchInfo')
-};
+/* ============ utils ============ */
+const $ = (s) => document.querySelector(s);
+const _esc = document.createElement('div');
+function escapeHtml(t) { _esc.textContent = t == null ? '' : String(t); return _esc.innerHTML; }
+function safeUrl(u) {
+  if (typeof u !== 'string' || !u) return '#';
+  try { const x = new URL(u, location.origin); return (x.protocol === 'http:' || x.protocol === 'https:') ? x.href : '#'; }
+  catch { return '#'; }
+}
+function fmt(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(n);
+}
+function avatar(name, iconUrl) {
+  if (iconUrl) {
+    const u = safeUrl(iconUrl);
+    if (u !== '#') return `<img class="card-icon" src="${escapeHtml(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" style="object-fit:cover" onerror="this.replaceWith(Object.assign(document.createElement('span'),{innerHTML:''}))">`;
+  }
+  const ch = (name || '?').trim().charAt(0).toUpperCase();
+  const hues = [150, 160, 168, 140, 175];
+  const h = hues[(name || '').length % hues.length];
+  return `<div class="card-icon" style="display:grid;place-items:center;font-weight:800;font-size:20px;color:#04140a;background:linear-gradient(135deg,hsl(${h} 70% 55%),hsl(${h + 20} 65% 45%))">${escapeHtml(ch)}</div>`;
+}
 
-const providerFields = {
+/* ============ toasts ============ */
+function toast(msg, type = 'info', ms = 3200) {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icon = type === 'success' ? 'M20 6 9 17l-5-5' : type === 'error' ? 'M18 6 6 18M6 6l12 12' : 'M12 8v5m0 3h.01';
+  el.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="${icon}"/></svg><span>${escapeHtml(msg)}</span>`;
+  $('#toasts').appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, ms);
+}
+
+/* ============ theme ============ */
+$('#themeBtn').addEventListener('click', () => {
+  const dark = !document.documentElement.classList.contains('dark');
+  document.documentElement.classList.toggle('dark', dark);
+  localStorage.setItem('fmm-theme', dark ? 'dark' : 'light');
+});
+
+/* ============ providers (real backend) ============ */
+const PROVIDER_LABELS = {
+  openai: 'OpenAI', anthropic: 'Anthropic', ollama: 'Ollama',
+  openrouter: 'OpenRouter', opencode: 'OpenCode', custom: 'Custom'
+};
+const PROVIDER_FIELDS = {
   openai: [
     { name: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-...' },
-    { name: 'model', label: 'Model', type: 'text', default: 'gpt-4o-mini', placeholder: 'gpt-4o-mini' },
+    { name: 'model', label: 'Model', type: 'text', def: 'gpt-4o-mini', placeholder: 'gpt-4o-mini' },
     { name: 'baseURL', label: 'Base URL (optional)', type: 'text', placeholder: 'https://api.openai.com/v1' }
   ],
   anthropic: [
     { name: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-ant-...' },
-    { name: 'model', label: 'Model', type: 'text', default: 'claude-3-5-haiku-20241022', placeholder: 'claude-3-5-haiku-20241022' }
+    { name: 'model', label: 'Model', type: 'text', def: 'claude-3-5-haiku-20241022', placeholder: 'claude-3-5-haiku-20241022' }
   ],
   ollama: [
-    { name: 'baseURL', label: 'Base URL', type: 'text', default: 'http://localhost:11434', placeholder: 'http://localhost:11434' },
-    { name: 'model', label: 'Model', type: 'text', default: 'llama3.2', placeholder: 'llama3.2' }
+    { name: 'baseURL', label: 'Base URL', type: 'text', def: 'http://localhost:11434', placeholder: 'http://localhost:11434' },
+    { name: 'model', label: 'Model', type: 'text', def: 'llama3.2', placeholder: 'llama3.2' }
   ],
   openrouter: [
     { name: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-or-...' },
-    { name: 'model', label: 'Model', type: 'text', default: 'google/gemini-pro', placeholder: 'google/gemini-pro' }
+    { name: 'model', label: 'Model', type: 'text', def: 'google/gemini-pro', placeholder: 'google/gemini-pro' }
+  ],
+  opencode: [
+    { name: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-...' },
+    { name: 'model', label: 'Model', type: 'text', def: 'mimo-v2.5-free', placeholder: 'mimo-v2.5-free' },
+    { name: 'baseURL', label: 'Base URL', type: 'text', def: 'https://opencode.ai/zen/v1', placeholder: 'https://opencode.ai/zen/v1' }
   ],
   custom: [
     { name: 'baseURL', label: 'Base URL', type: 'text', placeholder: 'https://api.example.com/v1' },
     { name: 'apiKey', label: 'API Key (optional)', type: 'password', placeholder: 'sk-...' },
     { name: 'model', label: 'Model', type: 'text', placeholder: 'model-name' }
-  ],
-  opencode: [
-    { name: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-...' },
-    { name: 'model', label: 'Model', type: 'text', default: 'mimo-v2.5-free', placeholder: 'mimo-v2.5-free' },
-    { name: 'baseURL', label: 'Base URL', type: 'text', default: 'https://opencode.ai/zen/v1', placeholder: 'https://opencode.ai/zen/v1' }
   ]
 };
 
-const tagColors = {
-  magic: 'tag-magic', technology: 'tag-tech', tech: 'tag-tech',
-  adventure: 'tag-adventure', fabric: 'tag-fabric', forge: 'tag-forge',
-  neoforge: 'tag-neoforge', quilt: 'tag-quilt',
-  rpg: 'tag-rpg', quest: 'tag-quest', quests: 'tag-quest',
-  multiplayer: 'tag-multiplayer', optimization: 'tag-opt',
-  challenging: 'tag-challenge', lightweight: 'tag-opt',
-  'quality of life': 'tag-opt', exploration: 'tag-adventure',
-  kitchen: 'tag-tech', 'kitchen sink': 'tag-tech'
-};
+let savedProviders = {};      // { id: { type, model, baseURL, apiKey(masked) } }
+let activeProviderId = null;
+let availableTypes = Object.keys(PROVIDER_LABELS);
+let editType = 'openai';      // provider type currently shown in modal
+let editValues = {};          // current field values in the modal
 
-// ===== TOAST SYSTEM =====
-function showToast(message, type = 'info', duration = 5000) {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-
-  const iconSvg = type === 'success'
-    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
-    : type === 'error'
-    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
-    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
-
-  toast.innerHTML = `
-    <span class="toast-icon">${iconSvg}</span>
-    <span>${escapeHtml(message)}</span>
-    <button class="toast-close" type="button" aria-label="Close">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-    </button>
-  `;
-
-  const closeBtn = toast.querySelector('.toast-close');
-  if (closeBtn) closeBtn.addEventListener('click', () => toast.remove());
-
-  elements.toasts.appendChild(toast);
-
-  if (duration > 0) {
-    setTimeout(() => {
-      toast.classList.add('removing');
-      setTimeout(() => toast.remove(), 300);
-    }, duration);
-  }
+function activeConfig() {
+  return activeProviderId ? savedProviders[activeProviderId] : null;
 }
 
-// ===== PROGRESS / LOADER =====
-let progressAnim = null;
-let progressTarget = 0;
-let currentProgress = 0;
-const RING_CIRCUMFERENCE = 2 * Math.PI * 58;
-
-function animateProgress(target) {
-  progressTarget = target;
-  if (progressAnim) cancelAnimationFrame(progressAnim);
-
-  function tick() {
-    if (currentProgress < progressTarget) {
-      currentProgress += 0.8;
-      if (currentProgress > progressTarget) currentProgress = progressTarget;
-    } else if (currentProgress > progressTarget) {
-      currentProgress -= 1.5;
-      if (currentProgress < progressTarget) currentProgress = progressTarget;
-    }
-
-    const offset = RING_CIRCUMFERENCE * (1 - currentProgress / 100);
-    elements.ringProgress.style.strokeDashoffset = offset;
-    elements.loaderPercent.textContent = Math.round(currentProgress) + '%';
-
-    if (currentProgress !== progressTarget) {
-      progressAnim = requestAnimationFrame(tick);
-    }
-  }
-
-  progressAnim = requestAnimationFrame(tick);
-}
-
-function setPhase(phase) {
-  const phaseOrder = ['parsing', 'searching', 'ranking'];
-  const phaseIdx = phaseOrder.indexOf(phase);
-
-  elements.loaderPhases.querySelectorAll('.loader-phase').forEach((el, i) => {
-    el.classList.remove('active', 'done');
-    if (i < phaseIdx) el.classList.add('done');
-    else if (i === phaseIdx) el.classList.add('active');
-  });
-}
-
-function showProgress(phase = 'parsing') {
-  elements.progressContainer.classList.add('visible');
-  elements.loaderParticles.classList.remove('hidden');
-  setPhase(phase);
-  const targets = { parsing: 20, searching: 65, ranking: 90 };
-  animateProgress(targets[phase] || 0);
-}
-
-function showProgressDone() {
-  setPhase('ranking');
-  animateProgress(100);
-}
-
-function triggerBurst() {
-  const burst = elements.burst;
-  burst.classList.add('active');
-
-  elements.burstShards.innerHTML = '';
-  const shardCount = 12;
-  for (let i = 0; i < shardCount; i++) {
-    const angle = (360 / shardCount) * i + (Math.random() * 10 - 5);
-    const dist = 70 + Math.random() * 40;
-    const shard = document.createElement('div');
-    shard.className = 'burst-shard';
-    shard.style.setProperty('--angle', angle + 'deg');
-    shard.style.setProperty('--dist', dist + 'px');
-    shard.style.animationDelay = (Math.random() * 0.08) + 's';
-    elements.burstShards.appendChild(shard);
-  }
-
-  elements.burstDots.innerHTML = '';
-  const dotColors = ['#1bd96a', '#22e874', '#0f9c4e', '#34ffc6', '#a0ffda', '#fff'];
-  const dotCount = 20;
-  for (let i = 0; i < dotCount; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 50 + Math.random() * 90;
-    const tx = Math.cos(angle) * dist;
-    const ty = Math.sin(angle) * dist;
-    const size = 2 + Math.random() * 4;
-    const dot = document.createElement('div');
-    dot.className = 'burst-dot';
-    dot.style.setProperty('--tx', tx + 'px');
-    dot.style.setProperty('--ty', ty + 'px');
-    dot.style.setProperty('--size', size + 'px');
-    dot.style.setProperty('--color', dotColors[Math.floor(Math.random() * dotColors.length)]);
-    dot.style.animationDelay = (Math.random() * 0.1) + 's';
-    elements.burstDots.appendChild(dot);
-  }
-
-  setTimeout(() => {
-    elements.progressContainer.classList.add('burst-exit');
-  }, 100);
-
-  setTimeout(() => {
-    burst.classList.remove('active');
-    elements.progressContainer.classList.remove('visible', 'burst-exit');
-    elements.burstShards.innerHTML = '';
-    elements.burstDots.innerHTML = '';
-    currentProgress = 0;
-    elements.ringProgress.style.strokeDashoffset = RING_CIRCUMFERENCE;
-    elements.loaderPercent.textContent = '0%';
-    if (progressAnim) cancelAnimationFrame(progressAnim);
-    elements.loaderPhases.querySelectorAll('.loader-phase').forEach(el => {
-      el.classList.remove('active', 'done');
-    });
-  }, 600);
-}
-
-function hideProgress() {
-  elements.progressContainer.classList.remove('visible');
-  currentProgress = 0;
-  elements.ringProgress.style.strokeDashoffset = RING_CIRCUMFERENCE;
-  elements.loaderPercent.textContent = '0%';
-  if (progressAnim) cancelAnimationFrame(progressAnim);
-  elements.loaderPhases.querySelectorAll('.loader-phase').forEach(el => {
-    el.classList.remove('active', 'done');
-  });
-}
-
-// ===== SKELETON LOADING =====
-function showSkeletons(count = 6) {
-  elements.results.innerHTML = '';
-  for (let i = 0; i < count; i++) {
-    const skeleton = document.createElement('div');
-    skeleton.className = 'result-card skeleton-card';
-    skeleton.innerHTML = `
-      <div class="card-header">
-        <div class="skeleton skeleton-icon"></div>
-        <div class="card-info">
-          <div class="skeleton skeleton-title"></div>
-          <div class="skeleton skeleton-meta"></div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="skeleton skeleton-text"></div>
-        <div class="skeleton skeleton-text skeleton-text-short"></div>
-        <div class="skeleton skeleton-text skeleton-text-shorter"></div>
-      </div>
-    `;
-    elements.results.appendChild(skeleton);
-  }
-}
-
-// ===== SEARCH HISTORY =====
-function loadHistory() {
-  try {
-    const history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
-    renderHistory(history);
-    return history;
-  } catch (e) {
-    console.warn('[APP] Could not load search history:', e.message);
-    renderHistory([]);
-    return [];
-  }
-}
-
-function saveHistory(query, resultCount = 0) {
-  try {
-    let history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
-    history = history.filter(h => h.query !== query);
-    history.unshift({ query, timestamp: Date.now(), resultCount });
-    history = history.slice(0, 8);
-    localStorage.setItem('searchHistory', JSON.stringify(history));
-    renderHistory(history);
-  } catch (e) {
-    console.warn('[APP] Could not save to localStorage:', e.message);
-  }
-}
-
-function renderHistory(history) {
-  if (!Array.isArray(history) || !history.length) {
-    elements.searchHistory.innerHTML = '';
-    return;
-  }
-  elements.searchHistory.innerHTML = `
-    <span class="search-history-label">Recent searches</span>
-    ${history.map(h => {
-      const timeAgo = getTimeAgo(h.timestamp);
-      const count = h.resultCount != null ? ` \u00B7 ${h.resultCount}` : '';
-      return `
-        <button class="history-chip" data-query="${escapeHtml(h.query)}">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          ${escapeHtml(h.query.length > 28 ? h.query.substring(0, 28) + '...' : h.query)}<span class="history-meta">${timeAgo}${count}</span>
-        </button>
-      `;
-    }).join('')}
-    <button class="history-chip" id="clearHistory" style="color: var(--error); border-color: rgba(255,107,107,0.2);">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-      Clear
-    </button>
-  `;
-
-  elements.searchHistory.querySelectorAll('.history-chip[data-query]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      elements.searchInput.value = btn.dataset.query;
-      autoResize(elements.searchInput);
-      search();
-    });
-  });
-
-  const clearBtn = document.getElementById('clearHistory');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      localStorage.removeItem('searchHistory');
-      renderHistory([]);
-      showToast('History cleared', 'info');
-    });
-  }
-}
-
-function getTimeAgo(timestamp) {
-  if (!timestamp) return '';
-  const diff = Date.now() - timestamp;
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
-
-// ===== PROVIDER LIST =====
-let savedProvidersData = {};
-let activeProviderIdData = null;
-
-function renderProviderList() {
-  const ids = Object.keys(savedProvidersData);
-  if (!ids.length) {
-    elements.providerList.innerHTML = '';
-    return;
-  }
-
-  elements.providerList.innerHTML = `
-    <div class="provider-list-header">
-      <span>Saved Providers</span>
-    </div>
-    ${ids.map(id => {
-      const p = savedProvidersData[id];
-      const isActive = id === activeProviderIdData;
-      return `
-        <div class="provider-item ${isActive ? 'active' : ''}" data-id="${id}">
-          <div class="provider-dot"></div>
-          <div class="provider-item-info">
-            <div class="provider-item-name">${escapeHtml(p.model || id)}</div>
-            <div class="provider-item-type">${escapeHtml(p.type)}</div>
-          </div>
-          <button class="provider-item-edit" data-id="${id}" title="Edit provider">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="provider-item-delete" data-id="${id}" title="Delete provider">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-          </button>
-        </div>
-      `;
-    }).join('')}
-  `;
-
-  elements.providerList.querySelectorAll('.provider-item').forEach(item => {
-    item.addEventListener('click', (e) => {
-      if (e.target.closest('.provider-item-delete') || e.target.closest('.provider-item-edit')) return;
-      const id = item.dataset.id;
-      fetch(`${API_BASE}/api/providers/active`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      }).then(() => {
-        activeProviderIdData = id;
-        renderProviderList();
-        const provider = savedProvidersData[id];
-        if (provider) {
-          elements.providerType.value = provider.type;
-          renderProviderFields(provider.type);
-          Object.entries(provider).forEach(([key, value]) => {
-            if (key !== 'type' && key !== 'apiKey') {
-              const input = document.getElementById(`field_${key}`);
-              if (input) input.value = value;
-            }
-          });
-        }
-        showToast('Provider activated', 'success');
-      });
-    });
-  });
-
-  elements.providerList.querySelectorAll('.provider-item-edit').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.id;
-      const provider = savedProvidersData[id];
-      if (!provider) return;
-
-      editingProviderId = id;
-      elements.providerType.value = provider.type;
-      renderProviderFields(provider.type);
-          Object.entries(provider).forEach(([key, value]) => {
-            if (key !== 'type' && key !== 'apiKey') {
-              const input = document.getElementById(`field_${key}`);
-              if (input) input.value = value;
-            }
-          });
-      showToast('Editing provider — modify fields and click Save', 'info');
-    });
-  });
-
-  elements.providerList.querySelectorAll('.provider-item-delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.id;
-      fetch(`${API_BASE}/api/providers/${id}`, { method: 'DELETE' })
-        .then(() => {
-          const wasActive = activeProviderIdData === id;
-          delete savedProvidersData[id];
-          if (wasActive) activeProviderIdData = null;
-          renderProviderList();
-
-          if (wasActive) {
-            editingProviderId = null;
-            elements.providerType.value = 'openai';
-            renderProviderFields('openai');
-            showToast('Active provider deleted. Configure a new one.', 'info');
-          } else {
-            showToast('Provider deleted', 'info');
-          }
-        });
-    });
-  });
-}
-
-// ===== RENDER FIELDS =====
-function renderProviderFields(type) {
-  const fields = providerFields[type] || [];
-  elements.providerFields.innerHTML = fields.map(f => `
-    <div class="form-group">
-      <label for="field_${f.name}">${f.label}</label>
-      <input type="${f.type}" id="field_${f.name}" value="${f.default || ''}" placeholder="${f.placeholder || ''}">
-    </div>
-  `).join('');
-}
-
-// ===== STATUS =====
-function showStatus(message, isError = false) {
-  elements.status.textContent = message;
-  elements.status.className = 'status' + (isError ? ' error' : '');
-  elements.status.classList.remove('hidden');
-}
-
-function hideStatus() {
-  elements.status.classList.add('hidden');
-}
-
-function clearToasts() {
-  elements.toasts.querySelectorAll('.toast').forEach(t => {
-    t.classList.add('removing');
-    setTimeout(() => t.remove(), 300);
-  });
-}
-
-// ===== LOADING =====
-function showLoading() {
-  clearToasts();
-  elements.searchBtn.disabled = true;
-  elements.searchBtn.querySelector('.btn-text').textContent = 'Searching...';
-  elements.emptyState.classList.add('hidden');
-  if (elements.searchInfo) elements.searchInfo.innerHTML = '';
-  hideProgress();
-  elements.burst.classList.remove('active');
-  elements.burstShards.innerHTML = '';
-  elements.burstDots.innerHTML = '';
-  elements.progressContainer.classList.remove('visible', 'burst-exit');
-}
-
-// ===== SEARCH INFO (summary + searchParams) =====
-function renderSearchInfo(data) {
-  if (!elements.searchInfo) return;
-
-  const parts = [];
-
-  if (data.searchParams) {
-    const sp = data.searchParams;
-    const filters = [];
-    if (sp.filters?.loaders?.length) filters.push(sp.filters.loaders.join(', '));
-    if (sp.filters?.versions?.length) filters.push(sp.filters.versions.join(', '));
-    if (sp.filters?.categories?.length) filters.push(sp.filters.categories.join(', '));
-
-    if (filters.length || sp.searchQuery) {
-      parts.push(`<span class="search-info-params">Search: <strong>${escapeHtml(sp.searchQuery || '')}</strong>${filters.length ? ' | ' + escapeHtml(filters.join(', ')) : ''}${sp.sortBy && sp.sortBy !== 'relevance' ? ' | Sort: ' + escapeHtml(sp.sortBy) : ''}</span>`);
-    }
-  }
-
-  if (data.explanation) {
-    parts.push(`<span class="search-info-summary">${escapeHtml(data.explanation)}</span>`);
-  }
-
-  if (parts.length) {
-    elements.searchInfo.innerHTML = `<div class="search-info">${parts.join('')}</div>`;
-  }
-}
-
-// ===== RENDER RESULTS =====
-function renderResults(data, animate = false) {
-  elements.searchBtn.disabled = false;
-  elements.searchBtn.querySelector('.btn-text').textContent = 'Search';
-
-  if (!data || !Array.isArray(data.results) || data.results.length === 0) {
-    hideProgress();
-    elements.results.innerHTML = '';
-    elements.emptyState.classList.remove('hidden');
-    showStatus(data?.explanation || 'Nothing found', true);
-    showToast(data?.explanation || 'Nothing found', 'error');
-    return;
-  }
-
-  const warnings = Array.isArray(data.warnings) ? data.warnings : [];
-  if (warnings.length > 0) {
-    showStatus(warnings.join(' '), true);
+function renderProviderPill() {
+  const cfg = activeConfig();
+  const pill = $('#providerPill');
+  if (cfg) {
+    $('#providerPillText').textContent = `${PROVIDER_LABELS[cfg.type] || cfg.type} · ${cfg.model || '—'}`;
+    pill.querySelector('span').classList.remove('bg-zinc-400');
+    pill.querySelector('span').classList.add('bg-emerald-500');
   } else {
-    hideStatus();
+    $('#providerPillText').textContent = 'No provider configured';
+    pill.querySelector('span').classList.remove('bg-emerald-500');
+    pill.querySelector('span').classList.add('bg-zinc-400');
+    pill.classList.remove('hidden');
   }
-
-  renderSearchInfo(data);
-
-  if (animate) {
-    elements.results.innerHTML = '';
-    elements.results.style.opacity = '0';
-
-    triggerBurst();
-
-    setTimeout(() => {
-      elements.results.style.opacity = '1';
-      elements.results.style.transition = 'opacity 0.3s ease';
-
-      data.results.forEach((r, i) => {
-        setTimeout(() => {
-          const card = createResultCard(r, i);
-          card.classList.add('burst-in');
-          elements.results.appendChild(card);
-
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              card.classList.add('burst-in-active');
-            });
-          });
-        }, 200 + i * 80);
-      });
-    }, 450);
-  } else {
-    elements.results.innerHTML = '';
-    data.results.forEach((r, i) => elements.results.appendChild(createResultCard(r, i)));
-    hideProgress();
-  }
-
-  showToast(`Found ${data.results.length} modpacks`, 'success', 3000);
 }
 
-function createResultCard(r, index = 0) {
-  if (!r) return document.createElement('div');
+async function loadProviders() {
+  try {
+    const r = await fetch(`${API_BASE}/api/providers`);
+    const data = await r.json();
+    savedProviders = data.saved || {};
+    activeProviderId = data.active || null;
+    if (Array.isArray(data.types) && data.types.length) {
+      // keep only types we know how to render fields for, preserve order
+      availableTypes = data.types.filter(t => PROVIDER_FIELDS[t]);
+    }
+    renderProviderPill();
+  } catch (e) {
+    console.error('[APP] loadProviders failed:', e);
+  }
+}
 
-  const loaderTags = ['fabric', 'forge', 'neoforge', 'quilt', 'bukkit', 'spigot', 'paper', 'purpur'];
+function setEditType(type) {
+  editType = type;
+  editValues = {};
+  // seed defaults
+  (PROVIDER_FIELDS[type] || []).forEach(f => { if (f.def) editValues[f.name] = f.def; });
+  // prefill from active saved provider when it matches this type
+  const cfg = activeConfig();
+  if (cfg && cfg.type === type) {
+    Object.entries(cfg).forEach(([k, v]) => { if (k !== 'type') editValues[k] = v; });
+  }
+}
 
-  const loaderIcons = {
-    fabric: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 7l9 5 9-5-9-5z"/><path d="M3 12l9 5 9-5"/><path d="M3 17l9 5 9-5"/></svg>',
-    forge: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5h8v-2h12v2s-7 3.4-7 6 3.1 3.1 3.1 3.1l.9 3.9H5l1-4.1s3.8.1 4-2.9c.2-2.7-6.5-.7-8-6"/></svg>',
-    neoforge: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19.2v2m0-2v2M8.4 1.3c.5 1.5.7 3 .1 4.6-.2.5-.9 1.5-1.6 1.5m8.7-6.1c-.5 1.5-.7 3-.1 4.6.2.6.9 1.5 1.6 1.5M3.6 15.8H1.9m18.5 0h1.7M3.2 12.1H1.5m19.3 0h1.8M8.1 12.7v1.6m7.8-1.6v1.6M10.8 18H12m0 1.2L10.8 18m2.4 0H12m0 1.2 1.2-1.2M4 9.7c-.5 1.2-.8 2.4-.8 3.7 0 3.1 2.9 6.3 5.3 8.2.9.7 2.2 1.1 3.4 1.1M12 4.9c-1.1 0-2.1.2-3.2.7M20 9.7c.5 1.2.8 2.4.8 3.7 0 3.1-2.9 6.3-5.3 8.2-.9.7-2.2 1.1-3.4 1.1M12 4.9c1.1 0 2.1.2 3.2.7M4 9.7c-.2-1.8-.3-3.7.5-5.5s2.2-2.6 3.9-3M20 9.7c.2-1.9.3-3.7-.5-5.5s-2.2-2.6-3.9-3M12 21.2l-2.4.4m2.4-.4 2.4.4"/></svg>',
-    quilt: '<svg class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>'
-  };
+function renderProviderGrid() {
+  $('#providerGrid').innerHTML = availableTypes.map(k =>
+    `<button type="button" class="prov-opt ${k === editType ? 'active' : ''}" data-type="${k}">${escapeHtml(PROVIDER_LABELS[k] || k)}</button>`
+  ).join('');
+  $('#providerGrid').querySelectorAll('.prov-opt').forEach(b =>
+    b.addEventListener('click', () => { setEditType(b.dataset.type); renderProviderGrid(); renderProviderFields(); $('#testResult').classList.add('hidden'); })
+  );
+}
+function renderProviderFields() {
+  const fields = PROVIDER_FIELDS[editType] || [];
+  $('#providerFields').innerHTML = fields.map(f =>
+    `<div><label class="field-label">${escapeHtml(f.label)}</label>
+     <input class="input" data-name="${f.name}" type="${f.type}" placeholder="${escapeHtml(f.placeholder || '')}" value="${escapeHtml(editValues[f.name] || '')}"></div>`
+  ).join('');
+  $('#providerFields').querySelectorAll('input').forEach(i =>
+    i.addEventListener('input', () => { editValues[i.dataset.name] = i.value; })
+  );
+}
+function collectConfig() {
+  const config = {};
+  (PROVIDER_FIELDS[editType] || []).forEach(f => {
+    const v = (editValues[f.name] || '').trim();
+    if (v) config[f.name] = v;
+  });
+  return config;
+}
 
-  const categories = Array.isArray(r.categories) ? r.categories : [];
-  const loaders = categories.filter(c => loaderTags.includes(c));
-  const cats = categories.filter(c => !loaderTags.includes(c));
-  const versions = Array.isArray(r.versions) ? r.versions.slice(0, 3) : [];
+function openModal() {
+  setEditType(activeConfig()?.type || editType || 'openai');
+  $('#modal').classList.remove('hidden');
+  renderProviderGrid();
+  renderProviderFields();
+  $('#testResult').classList.add('hidden');
+}
+function closeModal() { $('#modal').classList.add('hidden'); }
+$('#settingsBtn').addEventListener('click', openModal);
+$('#closeModal').addEventListener('click', closeModal);
+$('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
 
-  const matchBadge = r.matchQuality === 'exact'
-    ? '<span class="match-badge match-exact">Exact match</span>'
-    : r.matchQuality === 'close'
-    ? '<span class="match-badge match-close">Close match</span>'
-    : '';
+$('#testBtn').addEventListener('click', async () => {
+  const config = collectConfig();
+  if (!config.apiKey && !config.baseURL) { toast('Fill in the required fields first', 'error'); return; }
+  const t = $('#testResult'); t.classList.remove('hidden');
+  t.innerHTML = `<div class="info-bar" style="margin:0"><span class="info-pill">Testing…</span></div>`;
+  $('#testBtn').disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/providers/test`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: editType, config })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      t.innerHTML = `<div class="info-bar" style="margin:0"><span class="info-pill">✓ Connected${data.latency != null ? ' · ' + data.latency + ' ms' : ''}</span></div>`;
+    } else {
+      t.innerHTML = `<div class="info-bar" style="margin:0"><span class="info-pill">✕ ${escapeHtml(data.error || 'Connection failed')}</span></div>`;
+    }
+  } catch (e) {
+    t.innerHTML = `<div class="info-bar" style="margin:0"><span class="info-pill">✕ ${escapeHtml(e.message)}</span></div>`;
+  } finally {
+    $('#testBtn').disabled = false;
+  }
+});
 
-  const rankBadge = index === 0
-    ? '<span class="rank-badge">Best match</span>'
-    : index < 3
-    ? `<span class="rank-badge rank-top">${index + 1}</span>`
-    : '';
+$('#saveBtn').addEventListener('click', async () => {
+  const config = collectConfig();
+  if (!config.apiKey && !config.baseURL) { toast('Fill in the required fields first', 'error'); return; }
+  // reuse the active provider id when editing the same type, otherwise create a new one
+  const cur = activeConfig();
+  const id = (cur && cur.type === editType && activeProviderId) ? activeProviderId : 'provider-' + Date.now();
+  $('#saveBtn').disabled = true;
+  try {
+    const res1 = await fetch(`${API_BASE}/api/providers`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, type: editType, config })
+    });
+    const data1 = await res1.json();
+    if (!res1.ok) throw new Error(data1.error || 'Failed to save provider');
+    const actualId = data1.id || id;
+    const res2 = await fetch(`${API_BASE}/api/providers/active`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: actualId })
+    });
+    const data2 = await res2.json();
+    if (!res2.ok) throw new Error(data2.error || 'Failed to activate provider');
+    await loadProviders();
+    closeModal();
+    toast(`Saved ${PROVIDER_LABELS[editType] || editType} provider`, 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    $('#saveBtn').disabled = false;
+  }
+});
 
-  const tagHtml = `
-    ${loaders.length ? `<div class="tag-row"><span class="tag-group-label">Loaders</span>${loaders.map(c => `<span class="tag ${tagColors[c] || ''}">${loaderIcons[c] || ''}${escapeHtml(c)}</span>`).join('')}</div>` : ''}
-    ${cats.length ? `<div class="tag-row"><span class="tag-group-label">Categories</span>${cats.map(c => `<span class="tag ${tagColors[c] || ''}">${escapeHtml(c)}</span>`).join('')}</div>` : ''}
-    ${versions.length ? `<div class="tag-row"><span class="tag-group-label">Versions</span>${versions.map(v => `<span class="tag tag-version">${escapeHtml(v)}</span>`).join('')}</div>` : ''}
-  `;
+/* ============ phases / ring ============ */
+const RING = 364.4;
+function setRing(pct) { $('#ringBar').style.strokeDashoffset = String(RING * (1 - pct / 100)); $('#ringPct').textContent = Math.round(pct) + '%'; }
+const PHASES = [['parsing', 'Understanding'], ['searching', 'Searching Modrinth'], ['ranking', 'Ranking with AI']];
+const PHASE_INDEX = { parsing: 0, searching: 1, ranking: 2 };
+function renderPhases(active) {
+  $('#phases').innerHTML = PHASES.map((p, i) => {
+    const cls = i < active ? 'done' : i === active ? 'active' : '';
+    const sep = i < PHASES.length - 1 ? '<span class="phase-sep"></span>' : '';
+    return `<span class="phase ${cls}"><span class="dot"></span>${p[1]}</span>${sep}`;
+  }).join('');
+}
+let ringRAF = null;
+function animateRing(to, ms) {
+  return new Promise(res => {
+    if (ringRAF) cancelAnimationFrame(ringRAF);
+    const from = parseFloat($('#ringPct').textContent) || 0; const start = performance.now();
+    (function step(t) {
+      const k = Math.min(1, (t - start) / ms);
+      setRing(from + (to - from) * k);
+      if (k < 1) ringRAF = requestAnimationFrame(step); else res();
+    })(start);
+  });
+}
+function showSkeletons(n = 6) {
+  $('#results').innerHTML = Array.from({ length: n }).map(() =>
+    `<div class="skel"><div style="display:flex;gap:.8rem"><div class="shimmer" style="height:52px;width:52px;border-radius:13px"></div>
+     <div style="flex:1"><div class="shimmer" style="height:14px;width:60%"></div><div class="shimmer" style="height:10px;width:40%;margin-top:8px"></div></div></div>
+     <div class="shimmer" style="height:10px;width:100%;margin-top:14px"></div>
+     <div class="shimmer" style="height:10px;width:85%;margin-top:8px"></div>
+     <div class="shimmer" style="height:24px;width:70%;margin-top:14px;border-radius:999px"></div></div>`
+  ).join('');
+}
 
-  const div = document.createElement('div');
-  div.className = 'result-card';
-  div.innerHTML = `
-    <div class="card-header">
-      ${safeUrl(r.icon_url) ? `<img src="${escapeHtml(safeUrl(r.icon_url))}" alt="" class="card-icon">` : ''}
-      <div class="card-info">
-        <div class="card-title">
-          ${rankBadge}${matchBadge}
-          <a href="${escapeHtml(safeUrl(r.url) || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
-        </div>
+/* ============ render results ============ */
+function card(m, i) {
+  const quality = m.matchQuality || 'partial';
+  const badge = i === 0 ? '<span class="badge badge-best">Best match</span>'
+    : quality === 'exact' ? '<span class="badge badge-exact">Exact</span>'
+    : quality === 'close' ? '<span class="badge badge-close">Close</span>' : '';
+  const cats = Array.isArray(m.categories) ? m.categories : [];
+  const vers = Array.isArray(m.versions) ? m.versions : [];
+  const tags = [
+    ...cats.slice(0, 4).map(c => `<span class="tag">${escapeHtml(c)}</span>`),
+    ...vers.slice(0, 2).map(v => `<span class="tag tag-ver">${escapeHtml(v)}</span>`)
+  ].join('');
+  const title = m.title || m.name || m.slug || 'Modpack';
+  const url = m.url || ('https://modrinth.com/modpack/' + (m.slug || ''));
+  const why = m.explanation || m.description || '';
+  const el = document.createElement('article');
+  el.className = 'card card-in';
+  el.innerHTML = `
+    <div class="card-top">
+      ${avatar(title, m.icon_url)}
+      <div style="min-width:0;flex:1">
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">${badge}</div>
+        <div class="card-title" style="margin-top:.25rem"><a href="${escapeHtml(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a></div>
         <div class="card-meta">
-          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ${formatNumber(r.downloads)}</span>
-          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> ${formatNumber(r.follows)}</span>
+          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>${fmt(m.downloads)}</span>
+          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8Z"/></svg>${fmt(m.follows)}</span>
         </div>
       </div>
     </div>
-    <div class="card-body">
-      <div class="card-description">${escapeHtml(r.description || '')}</div>
-      <div class="card-explanation">${escapeHtml(r.explanation || '')}</div>
-      <div class="card-tags">${tagHtml}</div>
-      ${(r.description || '').length > 100 ? `
-        <button class="card-expand" type="button">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          <span>Show more</span>
-        </button>
-      ` : ''}
-    </div>
-  `;
+    ${m.description ? `<p class="card-desc">${escapeHtml(m.description)}</p>` : ''}
+    ${why ? `<div class="card-why">${escapeHtml(why)}</div>` : ''}
+    <div class="tags">${tags}</div>`;
+  return el;
+}
+function renderResults(list) {
+  const box = $('#results'); box.innerHTML = '';
+  $('#resultsCount').textContent = String(list.length);
+  $('#resultsHead').classList.remove('hidden');
+  $('#resultsHead').classList.add('flex');
+  list.forEach((m, i) => {
+    const c = card(m, i);
+    box.appendChild(c);
+    setTimeout(() => c.classList.add('show'), 60 + i * 70);
+  });
+}
+function renderInfo(searchParams, explanation, warnings, count) {
+  const sp = searchParams || {};
+  const filters = sp.filters || {};
+  const pills = [];
+  (filters.categories || []).forEach(c => pills.push(c));
+  (filters.loaders || []).forEach(l => pills.push(l));
+  (filters.versions || []).forEach(v => pills.push(v));
+  if (sp.sortBy && sp.sortBy !== 'relevance') pills.push('sort: ' + sp.sortBy);
+  (sp.excludeCategories || []).forEach(c => pills.push('– ' + c));
+  const warnHtml = (warnings && warnings.length)
+    ? `<div class="info-bar" style="margin-top:.6rem"><span style="font-weight:600;color:#f59e0b">⚠</span>${warnings.map(w => `<span class="info-pill">${escapeHtml(w)}</span>`).join('')}</div>`
+    : '';
+  const info = $('#searchInfo');
+  info.classList.remove('hidden');
+  info.innerHTML = `<div class="info-bar">
+    <span style="font-weight:600">AI understood:</span>
+    ${pills.length ? pills.map(p => `<span class="info-pill">${escapeHtml(p)}</span>`).join('') : '<span class="info-pill">general search</span>'}
+    <span style="margin-left:auto;font-size:12px;color:#71717a">${count} results</span>
+  </div>${explanation ? `<p style="text-align:center;margin-top:.7rem;color:#71717a;font-size:13px">${escapeHtml(explanation)}</p>` : ''}${warnHtml}`;
+}
 
-  const icon = div.querySelector('.card-icon');
-  if (icon) icon.addEventListener('error', () => { icon.style.display = 'none'; });
+/* ============ search flow (real SSE) ============ */
+let busy = false;
+let currentAbort = null;
 
-  const expandBtn = div.querySelector('.card-expand');
-  if (expandBtn) {
-    expandBtn.addEventListener('click', () => {
-      const card = expandBtn.closest('.result-card');
-      card.classList.toggle('expanded');
-      const span = expandBtn.querySelector('span');
-      if (span) span.textContent = card.classList.contains('expanded') ? 'Show less' : 'Show more';
-    });
+async function runSearch(q) {
+  if (busy) return;
+  if (!q) { toast('Type what kind of modpack you want', 'error'); return; }
+  if (!activeConfig()) {
+    toast('Configure an AI provider first', 'error');
+    openModal();
+    return;
   }
+  busy = true;
+  const btn = $('#searchBtn'); btn.disabled = true; btn.querySelector('.btn-label').textContent = 'Working…';
+  $('#emptyState').classList.add('hidden');
+  $('#searchInfo').classList.add('hidden');
+  $('#resultsHead').classList.add('hidden');
+  $('#progress').classList.remove('hidden');
+  renderPhases(0); setRing(0); showSkeletons();
+  if (currentAbort) currentAbort.abort();
+  currentAbort = new AbortController();
 
-  return div;
-}
-
-// ===== UTILITIES =====
-const _escapeDiv = document.createElement('div');
-function escapeHtml(text) {
-  _escapeDiv.textContent = text == null ? '' : text;
-  return _escapeDiv.innerHTML;
-}
-
-// Return the URL only if it is a safe http(s) URL, otherwise an empty string.
-// Prevents javascript:/data: and other dangerous schemes from being placed in
-// href/src attributes built from external (Modrinth/AI) data.
-function safeUrl(url) {
-  if (typeof url !== 'string' || !url) return '';
-  try {
-    const u = new URL(url, window.location.origin);
-    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
-  } catch (e) {
-    return '';
-  }
-}
-
-function formatNumber(n) {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return n.toString();
-}
-
-function autoResize(el) {
-  el.style.height = 'auto';
-  const newHeight = Math.min(el.scrollHeight, 138);
-  el.style.height = newHeight + 'px';
-  el.classList.toggle('scrollable', el.scrollHeight > 138);
-}
-
-// ===== SEARCH (SSE STREAMING) =====
-let currentSearchAbort = null;
-
-async function search() {
-  const query = elements.searchInput.value.trim();
-  if (!query) return;
-
-  if (currentSearchAbort) {
-    currentSearchAbort.abort();
-    currentSearchAbort = null;
-  }
-
-  showLoading();
-  showSkeletons(6);
-  showProgress('parsing');
-  currentSearchAbort = new AbortController();
+  const PHASE_TARGET = { parsing: 25, searching: 70, ranking: 95 };
+  let resultData = null;
 
   try {
-    const url = `${API_BASE}/api/search/stream?prompt=${encodeURIComponent(query)}`;
-    const response = await fetch(url, { signal: currentSearchAbort.signal });
-
+    const url = `${API_BASE}/api/search/stream?prompt=${encodeURIComponent(q)}`;
+    const response = await fetch(url, { signal: currentAbort.signal });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || 'Search failed');
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Search failed (${response.status})`);
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let resultData = null;
     let eventType = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop();
-
       for (const line of lines) {
         if (line.startsWith('event: ')) {
           eventType = line.slice(7).trim();
         } else if (line.startsWith('data: ')) {
-          const raw = line.slice(6);
-          try {
-            const parsed = JSON.parse(raw);
-
-            if (eventType === 'phase') {
-              const phase = parsed.phase;
-              setPhase(phase);
-              const targets = { parsing: 20, searching: 65, ranking: 90 };
-              animateProgress(targets[phase] || 0);
-            } else if (eventType === 'result') {
-              resultData = parsed;
-            } else if (eventType === 'error') {
-              throw new Error(parsed.error || 'Search error');
-            }
-          } catch (e) {
-            if (e.message && !e.message.includes('JSON')) throw e;
+          let parsed;
+          try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
+          if (eventType === 'phase') {
+            const idx = PHASE_INDEX[parsed.phase] ?? 0;
+            renderPhases(idx);
+            animateRing(PHASE_TARGET[parsed.phase] || 0, 600);
+          } else if (eventType === 'result') {
+            resultData = parsed;
+          } else if (eventType === 'error') {
+            throw new Error(parsed.error || 'Search error');
           }
         }
       }
     }
 
-    if (resultData) {
-      showProgressDone();
-      renderResults(resultData, true);
-      saveHistory(query, resultData.results?.length || 0);
-      autoResize(elements.searchInput);
+    renderPhases(PHASES.length);
+    await animateRing(100, 350);
+
+    const results = (resultData && resultData.results) || [];
+    $('#progress').classList.add('hidden');
+
+    if (!results.length) {
+      $('#emptyState').classList.remove('hidden');
+      $('#emptyState').querySelector('p.font-semibold').textContent = 'No modpacks found';
+      renderInfo(resultData && resultData.searchParams, resultData && resultData.explanation, resultData && resultData.warnings, 0);
+      toast('No modpacks matched your query', 'info');
     } else {
-      throw new Error('No response from server');
+      renderInfo(resultData.searchParams, resultData.explanation, resultData.warnings, results.length);
+      renderResults(results);
+      toast(`Found ${results.length} modpack${results.length === 1 ? '' : 's'}`, 'success');
     }
   } catch (e) {
-    if (e.name === 'AbortError') return;
-    console.error('[SEARCH ERROR]', e.stack || e.message, 'resultData:', resultData);
-    elements.searchBtn.disabled = false;
-    elements.searchBtn.querySelector('.btn-text').textContent = 'Search';
-    hideProgress();
-    elements.results.innerHTML = '';
-    elements.emptyState.classList.remove('hidden');
-    showStatus('Error: ' + e.message, true);
-    showToast(e.message, 'error');
+    $('#progress').classList.add('hidden');
+    if (e.name === 'AbortError') { busy = false; resetBtn(); return; }
+    $('#emptyState').classList.remove('hidden');
+    toast(e.message || 'Search failed', 'error');
   } finally {
-    currentSearchAbort = null;
+    currentAbort = null;
+    resetBtn();
+    busy = false;
   }
 }
-
-// ===== PROVIDERS =====
-function loadProviders() {
-  fetch(`${API_BASE}/api/providers`)
-    .then(r => r.json())
-    .then(data => {
-      savedProvidersData = data.saved || {};
-      activeProviderIdData = data.active || null;
-      renderProviderList();
-
-      if (data.active) {
-        const provider = data.saved[data.active];
-        if (provider) {
-          elements.providerType.value = provider.type;
-          renderProviderFields(provider.type);
-          Object.entries(provider).forEach(([key, value]) => {
-            if (key !== 'type') {
-              const input = document.getElementById(`field_${key}`);
-              if (input) input.value = value;
-            }
-          });
-        }
-      }
-    })
-    .catch(e => console.error('[APP] loadProviders() ERROR:', e));
+function resetBtn() {
+  const btn = $('#searchBtn'); btn.disabled = false; btn.querySelector('.btn-label').textContent = 'Search';
 }
 
-async function testProvider() {
-  const type = elements.providerType.value;
-  const config = {};
-  const fields = providerFields[type] || [];
-
-  fields.forEach(f => {
-    const input = document.getElementById(`field_${f.name}`);
-    if (input && input.value) config[f.name] = input.value;
-  });
-
-  elements.testBtn.disabled = true;
-  elements.testBtn.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
-      <path d="M21 12a9 9 0 11-6.219-8.56"/>
-    </svg>
-    Testing...
-  `;
-  elements.testResult.classList.add('hidden');
-
-  try {
-    const res = await fetch(`${API_BASE}/api/providers/test`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, config })
-    });
-
-    const data = await res.json();
-    elements.testResult.className = 'test-result ' + (data.ok ? 'success' : 'error');
-    elements.testResult.textContent = data.ok
-      ? `Connected (${data.latency}ms)`
-      : `Error: ${data.error}`;
-    elements.testResult.classList.remove('hidden');
-
-    showToast(data.ok ? `Connected in ${data.latency}ms` : 'Connection failed', data.ok ? 'success' : 'error');
-  } catch (e) {
-    elements.testResult.className = 'test-result error';
-    elements.testResult.textContent = 'Connection failed';
-    elements.testResult.classList.remove('hidden');
-    showToast('Connection failed', 'error');
-  }
-
-  elements.testBtn.disabled = false;
-  elements.testBtn.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-      <polyline points="22 4 12 14.01 9 11.01"/>
-    </svg>
-    Test Connection
-  `;
-}
-
-let editingProviderId = null;
-
-async function saveProvider() {
-  const type = elements.providerType.value;
-  const config = {};
-  const fields = providerFields[type] || [];
-
-  fields.forEach(f => {
-    const input = document.getElementById(`field_${f.name}`);
-    if (input && input.value) config[f.name] = input.value;
-  });
-
-  if (!config.apiKey && !config.baseURL) {
-    showToast('Please fill in the required fields', 'error');
-    return;
-  }
-
-  const id = editingProviderId || 'provider-' + Date.now();
-
-  try {
-    const res1 = await fetch(`${API_BASE}/api/providers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, type, config })
-    });
-
-    const data1 = await res1.json();
-    if (!res1.ok) {
-      throw new Error(data1.error || 'Failed to save provider');
-    }
-
-    const actualId = data1.id || id;
-
-    const res2 = await fetch(`${API_BASE}/api/providers/active`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: actualId })
-    });
-
-    if (!res2.ok) {
-      const err = await res2.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to activate provider');
-    }
-
-    showToast(editingProviderId ? 'Provider updated and activated' : 'Provider saved and activated', 'success');
-    editingProviderId = null;
-    loadProviders();
-    elements.settingsModal.classList.add('hidden');
-  } catch (e) {
-    showToast('Error: ' + e.message, 'error');
-  }
-}
-
-// ===== EVENT LISTENERS =====
-elements.searchInput.addEventListener('input', () => autoResize(elements.searchInput));
-elements.searchBtn.addEventListener('click', search);
-
-elements.searchInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    search();
-  }
+$('#searchForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  runSearch($('#searchInput').value.trim());
 });
 
-document.querySelectorAll('.example-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    elements.searchInput.value = btn.dataset.query;
-    autoResize(elements.searchInput);
-    search();
-  });
+/* ============ example chips ============ */
+const CHIPS = [
+  'magic and tech for 1.20.1 Fabric',
+  'hardcore RPG with quests',
+  'popular kitchen-sink pack',
+  'cozy magic pack, no hardcore',
+  'lightweight performance only',
+  'skyblock automation with friends'
+];
+$('#chips').innerHTML = CHIPS.map(c => `<button type="button" class="chip">${escapeHtml(c)}</button>`).join('');
+$('#chips').querySelectorAll('.chip').forEach(b =>
+  b.addEventListener('click', () => { $('#searchInput').value = b.textContent; runSearch(b.textContent); })
+);
+
+/* ============ shortcuts ============ */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); $('#searchInput').focus(); }
+  if (e.key === '/' && document.activeElement !== $('#searchInput')) { e.preventDefault(); $('#searchInput').focus(); }
 });
 
-elements.settingsBtn.addEventListener('click', () => {
-  elements.settingsModal.classList.remove('hidden');
-  loadProviders();
-});
-
-function closeSettingsModal() {
-  editingProviderId = null;
-  elements.settingsModal.classList.add('hidden');
-}
-
-elements.closeModal.addEventListener('click', closeSettingsModal);
-elements.cancelBtn.addEventListener('click', closeSettingsModal);
-
-elements.settingsModal.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) {
-    closeSettingsModal();
-  }
-});
-
-elements.providerType.addEventListener('change', () => renderProviderFields(elements.providerType.value));
-elements.testBtn.addEventListener('click', testProvider);
-elements.saveBtn.addEventListener('click', saveProvider);
-
-// ===== KEYBOARD SHORTCUTS =====
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    if (!elements.settingsModal.classList.contains('hidden')) {
-      elements.settingsModal.classList.add('hidden');
-    }
-  }
-
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    e.preventDefault();
-    elements.searchInput.focus();
-  }
-
-  if (e.key === '/' && document.activeElement !== elements.searchInput) {
-    e.preventDefault();
-    elements.searchInput.focus();
-  }
-});
-
-// ===== INIT =====
-renderProviderFields('openai');
-loadHistory();
+/* ============ init ============ */
+renderProviderPill();
+loadProviders();
