@@ -43,15 +43,22 @@ Open http://localhost:3000
 
 ## Configuration
 
-| Variable                  | Default      | Description                     |
-|---------------------------|--------------|---------------------------------|
-| PORT                      | 3000         | Server port                     |
-| DEFAULT_PROVIDER_TYPE     | openai       | Provider type                   |
-| DEFAULT_PROVIDER_API_KEY  | —            | API key for the provider        |
-| DEFAULT_PROVIDER_MODEL    | gpt-4o-mini  | Model name                      |
-| DEFAULT_PROVIDER_BASE_URL | —            | Custom endpoint URL (optional)  |
+| Variable                  | Default      | Description                                              |
+|---------------------------|--------------|----------------------------------------------------------|
+| PORT                      | 3000         | Server port                                              |
+| HOST                      | 127.0.0.1    | Interface to bind to (use `0.0.0.0` to expose on LAN)    |
+| ALLOWED_ORIGINS           | —            | Comma-separated origins allowed cross-origin (CORS)      |
+| TRUST_PROXY               | —            | Set when behind a reverse proxy so `req.ip` is correct   |
+| DEFAULT_PROVIDER_TYPE     | openai       | Provider type                                            |
+| DEFAULT_PROVIDER_API_KEY  | —            | API key for the provider                                 |
+| DEFAULT_PROVIDER_MODEL    | gpt-4o-mini  | Model name                                               |
+| DEFAULT_PROVIDER_BASE_URL | —            | Custom endpoint URL (optional)                           |
 
 Providers can also be configured through the in-app settings UI.
+
+> **Security note:** by default the server binds to `127.0.0.1` and rejects
+> cross-origin browser requests. If you put it behind a reverse proxy or expose
+> it on a network, set `HOST`, `ALLOWED_ORIGINS`, and `TRUST_PROXY` accordingly.
 
 ## Usage
 
@@ -82,8 +89,12 @@ Type a natural language query, for example:
 
 ## Security
 
-- API keys are masked in responses (`***xxxx`)
-- Rate limiting prevents abuse
+- Binds to `127.0.0.1` by default; not exposed on the network unless `HOST` is changed
+- CORS restricted to same-origin (or an explicit `ALLOWED_ORIGINS` allowlist)
+- Provider `baseURL` is validated (http/https only) to limit SSRF
+- Output is HTML-escaped and a Content-Security-Policy is enforced
+- API keys are masked in responses (`***xxxx`); `config/providers.json` is written with `0600` permissions
+- Rate limiting prevents abuse (10 requests/min per IP)
 - Prompt length limited to 2000 characters
 - AI requests have 60s timeout
 
