@@ -467,7 +467,7 @@ class Orchestrator {
     try {
       const rankResponse = await provider.completeWithTimeout([
         { role: 'system', content: rankPrompt },
-        { role: 'user', content: 'Проанализируй результаты и верни рекомендации' }
+        { role: 'user', content: 'Analyze the results and return recommendations' }
       ]);
 
       console.log('[ORCH] Phase 3 - AI raw response:', rankResponse.substring(0, 500));
