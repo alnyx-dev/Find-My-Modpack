@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Find My Modpack — AI Search for Minecraft Modpacks</title>
-  <link rel="icon" href="../public/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="AI-powered natural language search for Minecraft modpacks on Modrinth. Describe what you want — the AI parses, searches, and ranks the best modpacks for you.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231bd96a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2L2 7L12 12L22 7L12 2Z'/%3E%3Cpath d='M2 17L12 22L22 17'/%3E%3Cpath d='M2 12L12 17L22 12'/%3E%3C/svg%3E" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -12,6 +13,7 @@
 </head>
 <body>
 
+  <div class="bg-aurora"></div>
   <canvas id="bg-canvas"></canvas>
 
   <header>
@@ -28,7 +30,10 @@
         <a href="#features">Features</a>
         <a href="#how-it-works">How it Works</a>
         <a href="#setup">Setup</a>
-        <a href="https://github.com/alnyx-dev/Find-My-Modpack" target="_blank" class="btn-nav">GitHub</a>
+        <a href="https://github.com/alnyx-dev/Find-My-Modpack" target="_blank" rel="noopener" class="btn-nav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          GitHub
+        </a>
       </div>
     </nav>
   </header>
@@ -36,18 +41,62 @@
   <main>
 
     <section class="hero">
-      <div class="badge">Open Source</div>
-      <h1>Find Your Perfect<br><span class="accent">Modpack</span></h1>
-      <p class="subtitle">AI-powered natural language search for Minecraft modpacks on Modrinth. Just describe what you want — the AI handles the rest.</p>
-      <div class="hero-actions">
-        <a href="#setup" class="btn btn-primary">Get Started</a>
-        <a href="https://github.com/alnyx-dev/Find-My-Modpack" target="_blank" class="btn btn-secondary">View on GitHub</a>
+      <div class="hero-copy">
+        <div class="badge"><span class="dot-live"></span> Open Source · v1.9.0</div>
+        <h1>Find your perfect<br><span class="accent">Minecraft modpack</span></h1>
+        <p class="subtitle">AI-powered natural language search on Modrinth. Just describe what you want — the AI parses your request, searches, and ranks the best matches with explanations.</p>
+        <div class="hero-actions">
+          <a href="#setup" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+            Get Started
+          </a>
+          <a href="https://github.com/alnyx-dev/Find-My-Modpack" target="_blank" rel="noopener" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            View on GitHub
+          </a>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="stat-num">6</div><div class="stat-label">AI providers</div></div>
+          <div class="hero-stat"><div class="stat-num">3-phase</div><div class="stat-label">search pipeline</div></div>
+          <div class="hero-stat"><div class="stat-num">Local + API</div><div class="stat-label">search modes</div></div>
+          <div class="hero-stat"><div class="stat-num">MIT</div><div class="stat-label">licensed</div></div>
+        </div>
       </div>
 
+      <div class="hero-demo">
+        <div class="demo-window">
+          <div class="demo-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="demo-bar-title">find-my-modpack</span>
+          </div>
+          <div class="demo-content">
+            <div class="demo-query">
+              <span class="prompt-icon">&gt;</span>
+              <span>magic and tech modpack for 1.20.1 Fabric, not too hardcore<span class="cursor">&nbsp;</span></span>
+            </div>
+            <div class="demo-phases">
+              <div class="demo-phase"><span class="check">&#10003;</span> Parsing request with AI</div>
+              <div class="demo-phase"><span class="check">&#10003;</span> Searching Modrinth</div>
+              <div class="demo-phase"><span class="check">&#10003;</span> Ranking results</div>
+            </div>
+            <div class="demo-result">
+              <div class="res-name">Better MC [FABRIC]</div>
+              <div class="res-tags">
+                <span class="res-tag">magic</span>
+                <span class="res-tag">technology</span>
+                <span class="res-tag">1.20.1</span>
+                <span class="res-tag">fabric</span>
+              </div>
+              <div class="res-why">Blends magic and tech progression on Fabric 1.20.1 with a balanced, beginner-friendly difficulty curve — a strong match for your request.</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="features" id="features">
       <h2>Features</h2>
+      <p class="section-sub">Everything you need to find the right modpack, fast — without juggling filters and tags.</p>
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon">
@@ -60,22 +109,29 @@
           <div class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M20.66 7A10 10 0 0 0 14 2v6h6.66Z"/></svg>
           </div>
-          <h3>AI-Powered Pipeline</h3>
-          <p>Three-phase process: AI parses your query, Modrinth API finds matches, AI ranks the best results.</p>
+          <h3>3-Phase AI Pipeline</h3>
+          <p>AI parses your query, Modrinth API finds candidates, then AI ranks and explains the best results.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <h3>Live Streaming Results</h3>
+          <p>Server-Sent Events stream each phase in real time, so you see progress as the search runs.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
           <h3>Smart Fallbacks</h3>
-          <p>If too few results, the system progressively broadens your search to find the best matches.</p>
+          <p>If too few results match, the search progressively broadens with alternate queries to find more.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </div>
           <h3>Category Exclusion</h3>
-          <p>Say "no magic" or "no tech" — excluded categories are filtered from results.</p>
+          <p>Say "no magic" or "no tech" — excluded categories are filtered out of your results.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
@@ -86,40 +142,35 @@
         </div>
         <div class="feature-card">
           <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
           </div>
-          <h3>AI Explanations</h3>
-          <p>Each result comes with a personalized explanation of why it matches your request.</p>
+          <h3>Local Database</h3>
+          <p>Optional SQLite + FTS5 crawler caches modpacks locally for instant, full-text search.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
           </div>
           <h3>Secure by Default</h3>
-          <p>API keys masked in responses, rate limiting, prompt validation, and request timeouts.</p>
+          <p>Binds to localhost, masks API keys, restricts CORS, validates URLs, and rate-limits requests.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
           </div>
           <h3>Fast & Responsive</h3>
-          <p>Dark theme, keyboard shortcuts, and a responsive UI that works on any device.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-          </div>
-          <h3>Local Database</h3>
-          <p>Optional SQLite crawler for faster local search with full-text search support.</p>
+          <p>Dark theme, keyboard shortcuts (Ctrl+K, /, Esc), search history, and a UI for every device.</p>
         </div>
       </div>
     </section>
 
     <section class="how-it-works" id="how-it-works">
       <h2>How it Works</h2>
+      <p class="section-sub">Four steps, fully automated — from a plain sentence to ranked recommendations.</p>
       <div class="steps">
         <div class="step">
           <div class="step-icon">
+            <span class="step-num">1</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </div>
           <div class="step-content">
@@ -130,26 +181,29 @@
         <div class="step-connector"></div>
         <div class="step">
           <div class="step-icon">
+            <span class="step-num">2</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
           </div>
           <div class="step-content">
             <h3>Parse</h3>
-            <p>The AI extracts search parameters: keywords, loaders, versions, categories.</p>
+            <p>The AI extracts search parameters: keywords, loaders, versions, categories, and exclusions.</p>
           </div>
         </div>
         <div class="step-connector"></div>
         <div class="step">
           <div class="step-icon">
+            <span class="step-num">3</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </div>
           <div class="step-content">
             <h3>Search</h3>
-            <p>Structured query searches the local database first, then Modrinth API. Results broaden if needed.</p>
+            <p>Queries the local database first, then the Modrinth API — broadening automatically if needed.</p>
           </div>
         </div>
         <div class="step-connector"></div>
         <div class="step">
           <div class="step-icon">
+            <span class="step-num">4</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </div>
           <div class="step-content">
@@ -162,15 +216,21 @@
 
     <section class="setup" id="setup">
       <h2>Quick Start</h2>
+      <p class="section-sub">Up and running in under a minute. All you need is Node.js 18+ and one AI provider key.</p>
       <div class="setup-grid">
         <div class="setup-code">
           <div class="code-header">Install & Run</div>
-          <pre><code>git clone https://github.com/alnyx-dev/Find-My-Modpack.git
-cd Find-My-Modpack
-npm install
-cp .env.example .env
-npm start</code></pre>
-          <p class="code-note">Open <strong>http://localhost:3000</strong> in your browser. Optionally run <strong>npm run crawl</strong> to populate a local modpack database for faster search.</p>
+          <pre><code><span class="c-cmd">git clone</span> https://github.com/alnyx-dev/Find-My-Modpack.git
+<span class="c-cmd">cd</span> Find-My-Modpack
+<span class="c-cmd">npm install</span>
+<span class="c-cmd">cp</span> .env.example .env   <span class="c-comment"># add your AI provider key</span>
+<span class="c-cmd">npm start</span>
+
+<span class="c-comment"># optional: live-reload dev server</span>
+<span class="c-cmd">npm run dev</span>
+<span class="c-comment"># optional: build a local modpack database</span>
+<span class="c-cmd">npm run crawl</span></code></pre>
+          <p class="code-note">Open <strong>http://localhost:3000</strong> in your browser. Providers can also be configured from the in-app settings UI.</p>
         </div>
         <div class="setup-info">
           <h3>Prerequisites</h3>
@@ -186,30 +246,12 @@ npm start</code></pre>
           </ul>
           <h3>Supported Providers</h3>
           <ul>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              OpenAI
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Anthropic
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-              Ollama (local, no key needed)
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              OpenRouter
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              OpenCode Zen
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-              Any OpenAI-compatible API
-            </li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> OpenAI</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Anthropic</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg> Ollama (local, no key needed)</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> OpenRouter</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> OpenCode Zen</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Any OpenAI-compatible API</li>
           </ul>
         </div>
       </div>
@@ -227,12 +269,12 @@ npm start</code></pre>
         </svg>
         Find My Modpack
       </div>
-      <p>Built by <strong>alnyx</strong>. Powered by <a href="https://modrinth.com" target="_blank">Modrinth</a>.</p>
+      <p>Built by <strong>alnyx</strong>. Powered by <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a>.</p>
       <div class="footer-links">
-        <a href="https://github.com/alnyx-dev/Find-My-Modpack" target="_blank" aria-label="GitHub">
+        <a href="https://github.com/alnyx-dev/Find-My-Modpack" target="_blank" rel="noopener" aria-label="GitHub">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
         </a>
-        <a href="https://modrinth.com" target="_blank" aria-label="Modrinth">
+        <a href="https://modrinth.com" target="_blank" rel="noopener" aria-label="Modrinth">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7L12 12L22 7L12 2Z"/><path d="M2 17L12 22L22 17"/><path d="M2 12L12 17L22 12"/></svg>
         </a>
       </div>

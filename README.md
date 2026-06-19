@@ -1,5 +1,10 @@
 # Find My Modpack
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-1bd96a.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Version](https://img.shields.io/badge/version-1.9.0-1bd96a.svg)](package.json)
+[![Powered by Modrinth](https://img.shields.io/badge/Powered%20by-Modrinth-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com)
+
 > AI-powered natural language search for Minecraft modpacks on Modrinth.
 
 Search for modpacks using plain text. The AI understands your request, queries Modrinth, and ranks results with explanations.
@@ -8,9 +13,11 @@ Search for modpacks using plain text. The AI understands your request, queries M
 
 - Natural language search
 - 3-phase pipeline: AI parse → Modrinth API → AI rank
-- Configurable AI providers (OpenAI, Anthropic, Ollama, OpenRouter, OpenCode, Custom)
+- Live streaming results via Server-Sent Events (SSE)
+- Configurable AI providers (OpenAI, Anthropic, Ollama, OpenRouter, OpenCode Zen, Custom)
 - Progressive search broadening on few results
 - Category exclusion ("no magic", "no tech")
+- Optional local SQLite database (FTS5) with a Modrinth crawler for fast offline search
 - Dark theme, responsive design, keyboard shortcuts (Ctrl+K, /, Escape)
 - Search history saved in localStorage
 - Rate limiting (10 requests/min per IP)
@@ -22,13 +29,13 @@ Search for modpacks using plain text. The AI understands your request, queries M
 ### Prerequisites
 
 - Node.js 18+
-- One AI provider API key (OpenAI, Anthropic, Ollama, OpenRouter, OpenCode, or Custom)
+- One AI provider API key (OpenAI, Anthropic, Ollama, OpenRouter, OpenCode Zen, or Custom)
 
 ### Install
 
 ```bash
-git clone <url>
-cd find-my-modpack
+git clone https://github.com/alnyx-dev/Find-My-Modpack.git
+cd Find-My-Modpack
 npm install
 cp .env.example .env
 ```
@@ -40,6 +47,17 @@ npm start
 ```
 
 Open http://localhost:3000
+
+### Scripts
+
+| Command          | Description                                              |
+|------------------|----------------------------------------------------------|
+| `npm start`      | Start the server                                         |
+| `npm run dev`    | Start with live reload (nodemon)                         |
+| `npm run crawl`  | Crawl Modrinth and populate the local SQLite database    |
+
+> The crawler is optional. With a populated local database, searches hit the
+> local FTS5 index first and only fall back to the Modrinth API when needed.
 
 ## Configuration
 
@@ -102,9 +120,9 @@ Type a natural language query, for example:
 
 - **Backend:** Node.js, Express
 - **Frontend:** Vanilla HTML/CSS/JS
-- **Database:** SQLite with FTS5
+- **Database:** SQLite (better-sqlite3) with FTS5
 - **API:** Modrinth API v2
-- **AI:** OpenAI, Anthropic, Ollama, OpenRouter, OpenCode, or any OpenAI-compatible endpoint
+- **AI:** OpenAI, Anthropic, Ollama, OpenRouter, OpenCode Zen, or any OpenAI-compatible endpoint
 
 ## License
 
