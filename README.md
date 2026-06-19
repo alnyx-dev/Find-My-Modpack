@@ -10,7 +10,7 @@ Search for modpacks using plain text. The AI understands your request, queries M
 - 3-phase pipeline: AI parse → Modrinth API → AI rank
 - Configurable AI providers (OpenAI, Anthropic, Ollama, OpenRouter, OpenCode, Custom)
 - Progressive search broadening on few results
-- Category exclusion ("no magic", "без магии")
+- Category exclusion ("no magic", "no tech")
 - Dark theme, responsive design, keyboard shortcuts (Ctrl+K, /, Escape)
 - Search history saved in localStorage
 - Rate limiting (10 requests/min per IP)
@@ -70,8 +70,8 @@ Type a natural language query, for example:
 - "industrial modpack with automation"
 - "multiplayer modpack to play with friends"
 - "magic modpack with RPG quests"
-- "модпак для новичка с базовыми аддонами"
-- "хардкорный модпак без магии"
+- "popular tech modpack with Create and Mekanism, no magic"
+- "something interesting for singleplayer"
 
 ## API Endpoints
 

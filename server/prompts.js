@@ -39,13 +39,13 @@ alternateQueries rules:
 
 sortBy rules:
 - "relevance" — default, best for most queries
-- "downloads" — if user says "popular", "best", "top", "популярный", "лучший"
-- "follows" — if user says "interesting", "recommended", "интересный"
-- "newest" — if user says "new", "recent", "новый", "свежий"
-- "updated" — if user says "active", "maintained", "fresh updates", "активный"
+- "downloads" — if user says "popular", "best", "top"
+- "follows" — if user says "interesting", "recommended"
+- "newest" — if user says "new", "recent"
+- "updated" — if user says "active", "maintained", "fresh updates"
 
 excludeCategories rules:
-- If user says "no magic", "без магии", "without tech" etc. — add the excluded category
+- If user says "no magic", "without tech", "no automation" etc. — add the excluded category
 - If no exclusions — leave as empty array
 - Only use categories from the available list
 
@@ -73,7 +73,7 @@ Response:
   "userIntent": "User wants a combination of magic and technology on Fabric 1.20.1"
 }
 
-User: "Попуальный модпак с Create и Mekanism, без магии"
+User: "Popular modpack with Create and Mekanism, no magic"
 Response:
 {
   "searchQuery": "technology automation",
@@ -89,7 +89,7 @@ Response:
   "userIntent": "User wants a popular tech modpack featuring Create and Mekanism, no magic"
 }
 
-User: "Что-нибудь интересное для одиночной игры"
+User: "Something interesting for singleplayer"
 Response:
 {
   "searchQuery": "singleplayer adventure",
