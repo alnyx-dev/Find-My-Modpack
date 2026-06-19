@@ -59,6 +59,17 @@ Open http://localhost:3000
 > The crawler is optional. With a populated local database, searches hit the
 > local FTS5 index first and only fall back to the Modrinth API when needed.
 
+## Use It For Free
+
+Run Find My Modpack at zero cost using OpenCode Zen's free models — no credit card required:
+
+1. Register at [opencode.ai/auth](https://opencode.ai/auth)
+2. Create an API key and copy it
+3. In the app's **Settings**, select the **OpenCode Zen** provider and paste your key
+4. Set the model to `mimo-v2.5-free`
+
+> Browse all available models at [opencode.ai/docs/zen](https://opencode.ai/docs/zen) — free models are tagged `free`.
+
 ## Configuration
 
 | Variable                  | Default      | Description                                              |
